@@ -1,0 +1,2879 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Stickman Võ Đạo - Đại Chiến Người Que</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700;1,800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #07090e;
+            color: #ffffff;
+            font-family: 'Chakra Petch', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            touch-action: none;
+        }
+        #game-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #141824 0%, #05070a 100%);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        /* Skewed HUD Bars */
+        .hud-skew-left {
+            transform: skewX(-18deg);
+        }
+        .hud-skew-right {
+            transform: skewX(18deg);
+        }
+        .text-glow-cyan {
+            text-shadow: 0 0 12px rgba(0, 240, 255, 0.8), 0 0 24px rgba(0, 136, 255, 0.6);
+        }
+        .text-glow-red {
+            text-shadow: 0 0 12px rgba(255, 42, 85, 0.8), 0 0 24px rgba(255, 0, 85, 0.6);
+        }
+        .text-glow-gold {
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.9), 0 0 30px rgba(255, 140, 0, 0.8);
+        }
+        .btn-arcade {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 2px solid #38bdf8;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.25), inset 0 0 10px rgba(56, 189, 248, 0.15);
+            transition: all 0.15s ease;
+        }
+        .btn-arcade:hover {
+            transform: translateY(-2px) scale(1.02);
+            border-color: #7dd3fc;
+            box-shadow: 0 0 25px rgba(56, 189, 248, 0.5), inset 0 0 15px rgba(56, 189, 248, 0.3);
+        }
+        .btn-arcade:active {
+            transform: translateY(1px) scale(0.98);
+        }
+        .btn-arcade.active-mode {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            border-color: #e0f2fe;
+            box-shadow: 0 0 25px rgba(56, 189, 248, 0.7);
+        }
+        @keyframes pulse-fast {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.06); }
+        }
+        .animate-pulse-fast {
+            animation: pulse-fast 0.9s infinite ease-in-out;
+        }
+        @keyframes ult-ready-glow {
+            0%, 100% {
+                box-shadow: 0 0 15px #ff2a55, 0 0 30px #f59e0b, inset 0 0 12px #ff2a55;
+                transform: scale(1);
+            }
+            50% {
+                box-shadow: 0 0 28px #fbbf24, 0 0 48px #ff2a55, inset 0 0 20px #fbbf24;
+                transform: scale(1.09);
+            }
+        }
+        .ult-ready-btn {
+            animation: ult-ready-glow 0.8s infinite ease-in-out !important;
+            border-color: #fbbf24 !important;
+            background: radial-gradient(circle, rgba(225, 29, 72, 0.85) 0%, rgba(136, 19, 55, 0.9) 100%) !important;
+            color: #fef08a !important;
+        }
+        /* Touch Controls Styling */
+        .touch-btn {
+            background: rgba(15, 23, 42, 0.68);
+            backdrop-filter: blur(6px);
+            border: 2px solid rgba(255, 255, 255, 0.28);
+            border-radius: 9999px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 800;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+            touch-action: none;
+            transition: transform 0.06s ease, background 0.06s ease;
+        }
+        .touch-btn.pressed {
+            transform: scale(0.88);
+            background: rgba(56, 189, 248, 0.55);
+            border-color: #7dd3fc;
+            box-shadow: 0 0 18px rgba(56, 189, 248, 0.8);
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <!-- Main Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- TOP HUD OVERLAY -->
+    <div id="hud-overlay" class="absolute top-0 left-0 w-full px-2 sm:px-6 pt-1.5 sm:pt-3 pointer-events-none z-10 flex flex-col gap-1.5">
+        <div class="w-full max-w-6xl mx-auto flex items-start justify-between gap-2 sm:gap-4">
+            
+            <!-- PLAYER 1 HUD -->
+            <div class="flex-1 flex flex-col">
+                <div class="flex justify-between items-end mb-0.5 px-1">
+                    <div class="flex items-center gap-1.5">
+                        <span class="inline-block w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-cyan-400 shadow-[0_0_8px_#00f0ff]"></span>
+                        <span id="p1-name-label" class="font-extrabold text-xs sm:text-lg tracking-wider text-cyan-300 text-glow-cyan uppercase">LÔI THẦN (P1)</span>
+                    </div>
+                    <span id="p1-hp-text" class="text-[10px] sm:text-sm font-bold text-slate-300">1000 / 1000</span>
+                </div>
+                
+                <!-- Health Bar Container -->
+                <div class="h-4 sm:h-7 w-full bg-slate-900/90 border-2 border-cyan-500/60 hud-skew-left p-0.5 relative overflow-hidden shadow-[0_0_15px_rgba(0,240,255,0.2)]">
+                    <div id="p1-hp-damage" class="h-full bg-amber-400 transition-all duration-300 ease-out w-full"></div>
+                    <div id="p1-hp-bar" class="h-full bg-gradient-to-r from-blue-600 via-cyan-400 to-teal-300 absolute top-0 left-0 transition-all duration-75 w-full"></div>
+                </div>
+
+                <!-- Energy / Mana Bar -->
+                <div class="mt-1 flex items-center gap-2">
+                    <div class="w-4/5 h-2 sm:h-3.5 bg-slate-900/90 border border-amber-500/50 hud-skew-left p-0.5 relative overflow-hidden">
+                        <div id="p1-mp-bar" class="h-full bg-gradient-to-r from-amber-600 via-yellow-400 to-amber-200 transition-all duration-100 w-1/2"></div>
+                    </div>
+                    <span id="p1-mp-text" class="text-[10px] sm:text-xs font-extrabold text-amber-400 tracking-wider">50% NỘI LỰC</span>
+                </div>
+            </div>
+
+            <!-- CENTER TIMER & CONTROLS -->
+            <div class="flex flex-col items-center justify-center px-1">
+                <div class="bg-slate-900/90 border-2 border-slate-600 rounded-xl px-2.5 sm:px-5 py-0.5 sm:py-1 shadow-lg flex flex-col items-center">
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[8px] sm:text-[10px] text-slate-400 tracking-widest uppercase">THỜI GIAN</span>
+                        <span id="online-ping-badge" class="hidden text-[9px] font-bold px-1.5 py-0.2 bg-emerald-950 text-emerald-400 border border-emerald-500/40 rounded-full">● 24ms</span>
+                    </div>
+                    <span id="timer-display" class="text-lg sm:text-3xl font-black text-white tracking-wider leading-none">99</span>
+                </div>
+                <div class="flex flex-wrap justify-center gap-1 mt-1 pointer-events-auto">
+                    <button id="btn-open-menu" class="px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded shadow transition">
+                        ☰ MENU
+                    </button>
+                    <button id="btn-toggle-touch" class="px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-emerald-950/90 hover:bg-emerald-900 text-emerald-300 border border-emerald-600 rounded shadow transition">
+                        📱 PHÍM ẢO: BẬT
+                    </button>
+                    <button id="btn-toggle-moves" class="px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-cyan-950/90 hover:bg-cyan-900 text-cyan-300 border border-cyan-700 rounded shadow transition">
+                        ? COMBO
+                    </button>
+                </div>
+            </div>
+
+            <!-- PLAYER 2 / AI HUD -->
+            <div class="flex-1 flex flex-col items-end">
+                <div class="w-full flex justify-between items-end mb-0.5 px-1">
+                    <span id="p2-hp-text" class="text-[10px] sm:text-sm font-bold text-slate-300">1000 / 1000</span>
+                    <div class="flex items-center gap-1.5">
+                        <span id="p2-name-label" class="font-extrabold text-xs sm:text-lg tracking-wider text-rose-400 text-glow-red uppercase">HUYẾT ẢNH (AI)</span>
+                        <span class="inline-block w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-rose-500 shadow-[0_0_8px_#ff2a55]"></span>
+                    </div>
+                </div>
+                
+                <!-- Health Bar Container -->
+                <div class="h-4 sm:h-7 w-full bg-slate-900/90 border-2 border-rose-500/60 hud-skew-right p-0.5 relative overflow-hidden shadow-[0_0_15px_rgba(255,42,85,0.2)]">
+                    <div id="p2-hp-damage" class="h-full bg-amber-400 transition-all duration-300 ease-out w-full float-right"></div>
+                    <div id="p2-hp-bar" class="h-full bg-gradient-to-l from-red-600 via-rose-500 to-pink-400 absolute top-0 right-0 transition-all duration-75 w-full"></div>
+                </div>
+
+                <!-- Energy / Mana Bar -->
+                <div class="mt-1 w-full flex items-center justify-end gap-2">
+                    <span id="p2-mp-text" class="text-[10px] sm:text-xs font-extrabold text-amber-400 tracking-wider">50% NỘI LỰC</span>
+                    <div class="w-4/5 h-2 sm:h-3.5 bg-slate-900/90 border border-amber-500/50 hud-skew-right p-0.5 relative overflow-hidden">
+                        <div id="p2-mp-bar" class="h-full bg-gradient-to-l from-amber-600 via-yellow-400 to-amber-200 float-right transition-all duration-100 w-1/2"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ONLINE STATUS BAR -->
+        <div id="online-status-bar" class="hidden self-center bg-slate-900/90 border border-cyan-500/50 rounded-full px-4 py-0.5 text-[11px] font-bold text-cyan-300 flex items-center gap-3 pointer-events-auto shadow-lg">
+            <span id="online-room-label">🌐 PHÒNG: ----</span>
+            <span id="online-role-label" class="text-amber-300">Vai trò: P1</span>
+            <span id="online-conn-state" class="text-emerald-400">● Đã kết nối</span>
+        </div>
+
+        <!-- TRAINING MODE QUICK BAR -->
+        <div id="training-toolbar" class="hidden self-center bg-slate-900/85 border border-emerald-500/50 rounded-full px-4 py-1 text-xs font-bold text-emerald-300 flex items-center gap-4 pointer-events-auto shadow-lg">
+            <span>⚡ PHÒNG TẬP</span>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" id="chk-inf-mp" checked class="accent-emerald-400">
+                <span>100% Nội Lực</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" id="chk-inf-hp" checked class="accent-emerald-400">
+                <span>Bất Tử Hồi Máu</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" id="chk-dummy-attack" class="accent-emerald-400">
+                <span>Máy Đánh Trả</span>
+            </label>
+        </div>
+    </div>
+
+    <!-- FLOATING COMBO GUIDE PANEL (Left Side) -->
+    <div id="combo-guide-panel" class="hidden sm:block absolute left-3 top-24 sm:top-28 bg-slate-950/85 backdrop-blur-md border border-cyan-500/40 rounded-xl p-3 sm:p-4 w-64 sm:w-80 z-10 pointer-events-auto shadow-2xl transition-all duration-200">
+        <div class="flex justify-between items-center border-b border-slate-800 pb-1.5 mb-2">
+            <h3 class="text-xs sm:text-sm font-extrabold text-cyan-400 tracking-wider uppercase">BÍ KÍP VÕ CÔNG & COMBO</h3>
+            <button id="btn-close-guide" class="text-slate-400 hover:text-white text-xs font-bold px-1">✕</button>
+        </div>
+        <div class="space-y-1.5 text-[11px] sm:text-xs text-slate-200">
+            <div class="flex justify-between">
+                <span class="text-slate-400">Di chuyển / Nhảy / Thủ:</span>
+                <span class="font-bold text-white">A, D / W / S</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-cyan-300 font-bold">Liên Hoàn Quyền (4 Thức):</span>
+                <span class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded font-mono text-cyan-300">J - J - J - J</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-amber-300 font-bold">Trọng Kích / Thiên Thạch:</span>
+                <span class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded font-mono text-amber-300">K / Nhảy + K</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-purple-300 font-bold">Tốc Biến Ảnh Bộ:</span>
+                <span class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded font-mono text-purple-300">Shift / Space</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-sky-300 font-bold">Kiếm Khí Trảm (20% MP):</span>
+                <span class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded font-mono text-sky-300">Phím O / L</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-emerald-300 font-bold">Long Thăng Quyền (30%):</span>
+                <span class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded font-mono text-emerald-300">Phím U</span>
+            </div>
+            <div class="flex justify-between items-center pt-1 border-t border-slate-800/80">
+                <span class="text-rose-400 font-extrabold">TUYỆT KỸ TRẢM (100%):</span>
+                <span class="px-1.5 py-0.5 bg-rose-950 border border-rose-500 rounded font-mono text-rose-300 animate-pulse">Phím I</span>
+            </div>
+            <div class="mt-2 pt-1.5 border-t border-slate-800 text-[10px] text-slate-400 leading-tight">
+                💡 <span class="text-amber-300 font-semibold">Combo Chuẩn:</span> <span class="text-white">J-J-J ➔ U (Hất tung) ➔ Nhảy + K (Thiên thạch) ➔ I (Tuyệt kỹ)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- SINGLE-PLAYER / ONLINE VIRTUAL GAMEPAD (ARC LAYOUT FOR MOBILE)     -->
+    <!-- ================================================================== -->
+    <div id="mobile-controls-single" class=" absolute bottom-2 sm:bottom-4 left-0 w-full px-3 sm:px-6 flex justify-between items-end z-20 pointer-events-none">
+        
+        <!-- LEFT D-PAD (Multi-touch directional pad) -->
+        <div class="relative w-36 h-36 sm:w-44 sm:h-44 pointer-events-auto select-none">
+            <!-- UP / JUMP -->
+            <button data-touch-action="up" class="touch-btn absolute top-0 left-1/2 -translate-x-1/2 w-12 h-12 sm:w-14 sm:h-14 border-cyan-400/50">
+                <span class="text-sm sm:text-base leading-none">▲</span>
+                <span class="text-[8px] sm:text-[9px] text-cyan-200">NHẢY</span>
+            </button>
+            <!-- LEFT -->
+            <button data-touch-action="left" class="touch-btn absolute left-0 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-14 sm:h-14 border-slate-400/50">
+                <span class="text-base sm:text-lg leading-none">◀</span>
+                <span class="text-[8px] text-slate-300">TRÁI</span>
+            </button>
+            <!-- RIGHT -->
+            <button data-touch-action="right" class="touch-btn absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-14 sm:h-14 border-slate-400/50">
+                <span class="text-base sm:text-lg leading-none">▶</span>
+                <span class="text-[8px] text-slate-300">PHẢI</span>
+            </button>
+            <!-- DOWN / BLOCK -->
+            <button data-touch-action="down" class="touch-btn absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-12 sm:w-14 sm:h-14 border-amber-400/60">
+                <span class="text-xs sm:text-sm leading-none">🛡️</span>
+                <span class="text-[8px] sm:text-[9px] text-amber-300">THỦ</span>
+            </button>
+            <!-- Center Pivot Decor -->
+            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-800/60 border border-slate-600/50 pointer-events-none"></div>
+        </div>
+
+        <!-- RIGHT ARCADE ARC CLUSTER (MOBA / Fighting Game Style) -->
+        <div class="relative w-48 h-44 sm:w-56 sm:h-52 pointer-events-auto select-none">
+            <!-- Main Light Attack (J) - Big Bottom Right Anchor -->
+            <button data-touch-action="light" class="touch-btn absolute bottom-1 right-1 w-20 h-20 sm:w-24 sm:h-24 border-4 border-cyan-400 bg-cyan-950/75 text-cyan-200 shadow-[0_0_20px_rgba(0,240,255,0.45)]">
+                <span class="text-xl sm:text-2xl font-black leading-none">QUYỀN</span>
+                <span class="text-[9px] sm:text-[10px] text-cyan-300 mt-0.5">COMBO (J)</span>
+            </button>
+
+            <!-- Dash / Evade (Shift) - Bottom Left of Arc -->
+            <button data-touch-action="dash" class="touch-btn absolute bottom-1 right-24 sm:right-28 w-13 h-13 sm:w-15 sm:h-15 border-purple-400/80 bg-purple-950/60 text-purple-200" style="width: 52px; height: 52px;">
+                <span class="text-xs font-extrabold leading-none">LƯỚT</span>
+                <span class="text-[8px] text-purple-300">DASH</span>
+            </button>
+
+            <!-- Heavy Attack (K) - Middle Left of Arc -->
+            <button data-touch-action="heavy" class="touch-btn absolute bottom-16 right-24 sm:bottom-20 sm:right-28 w-14 h-14 sm:w-16 sm:h-16 border-amber-400/90 bg-amber-950/65 text-amber-300">
+                <span class="text-xs sm:text-sm font-black leading-none">TRỌNG</span>
+                <span class="text-[8px] text-amber-200">KÍCH (K)</span>
+            </button>
+
+            <!-- Dragon Uppercut (U) - Upper Middle of Arc -->
+            <button data-touch-action="skillDragon" class="touch-btn absolute bottom-24 right-12 sm:bottom-28 sm:right-14 w-14 h-14 sm:w-15 sm:h-15 border-emerald-400/90 bg-emerald-950/65 text-emerald-300" style="width: 54px; height: 54px;">
+                <span class="text-xs font-black leading-none">THĂNG</span>
+                <span class="text-[8px] text-emerald-200">30% (U)</span>
+            </button>
+
+            <!-- Sword Ki Blast (O) - Upper Right of Arc -->
+            <button data-touch-action="skillKi" class="touch-btn absolute bottom-24 right-0 sm:bottom-28 sm:right-0 w-13 h-13 sm:w-14 sm:h-14 border-sky-400/90 bg-sky-950/65 text-sky-300" style="width: 52px; height: 52px;">
+                <span class="text-[11px] font-black leading-none">KIẾM KHÍ</span>
+                <span class="text-[8px] text-sky-200">20% (O)</span>
+            </button>
+
+            <!-- Ultimate Skill (I) - Crown of Arc -->
+            <button id="btn-touch-ult" data-touch-action="ult" class="touch-btn absolute top-0 right-16 sm:right-20 w-16 h-16 sm:w-18 sm:h-18 border-2 border-rose-500 bg-rose-950/80 text-rose-300 shadow-[0_0_15px_rgba(255,42,85,0.4)]" style="width: 64px; height: 64px;">
+                <span class="text-xs sm:text-sm font-black leading-none">TUYỆT KỸ</span>
+                <span class="text-[8px] text-amber-300 font-bold mt-0.5">100% (I)</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- 2 PLAYERS ON 1 PHONE SPLIT TOUCH CONTROLS (P1 Left / P2 Right)     -->
+    <!-- ================================================================== -->
+    <div id="mobile-controls-split" class="hidden absolute bottom-2 left-0 w-full px-2 flex justify-between items-end z-20 pointer-events-none">
+        <!-- P1 MINI CLUSTER (Left Half) -->
+        <div class="bg-slate-950/60 border border-cyan-500/40 rounded-2xl p-2 flex items-center gap-2 pointer-events-auto">
+            <div class="grid grid-cols-3 gap-1">
+                <div></div>
+                <button data-p1-touch="up" class="touch-btn w-10 h-10 text-xs border-cyan-400">▲</button>
+                <div></div>
+                <button data-p1-touch="left" class="touch-btn w-10 h-10 text-xs">◀</button>
+                <button data-p1-touch="down" class="touch-btn w-10 h-10 text-[10px] border-amber-400">🛡️</button>
+                <button data-p1-touch="right" class="touch-btn w-10 h-10 text-xs">▶</button>
+            </div>
+            <div class="grid grid-cols-2 gap-1.5 pl-1 border-l border-slate-700">
+                <button data-p1-touch="light" class="touch-btn w-11 h-11 text-[10px] border-cyan-400 text-cyan-300">ĐÁNH</button>
+                <button data-p1-touch="heavy" class="touch-btn w-11 h-11 text-[10px] border-amber-400 text-amber-300">MẠNH</button>
+                <button data-p1-touch="skillDragon" class="touch-btn w-11 h-11 text-[9px] border-emerald-400 text-emerald-300">THĂNG</button>
+                <button data-p1-touch="ult" class="touch-btn w-11 h-11 text-[9px] border-rose-500 text-rose-300">TUYỆT</button>
+            </div>
+        </div>
+
+        <!-- P2 MINI CLUSTER (Right Half) -->
+        <div class="bg-slate-950/60 border border-rose-500/40 rounded-2xl p-2 flex items-center gap-2 pointer-events-auto">
+            <div class="grid grid-cols-2 gap-1.5 pr-1 border-r border-slate-700">
+                <button data-p2-touch="light" class="touch-btn w-11 h-11 text-[10px] border-rose-400 text-rose-300">ĐÁNH</button>
+                <button data-p2-touch="heavy" class="touch-btn w-11 h-11 text-[10px] border-amber-400 text-amber-300">MẠNH</button>
+                <button data-p2-touch="skillDragon" class="touch-btn w-11 h-11 text-[9px] border-emerald-400 text-emerald-300">THĂNG</button>
+                <button data-p2-touch="ult" class="touch-btn w-11 h-11 text-[9px] border-amber-500 text-amber-300">TUYỆT</button>
+            </div>
+            <div class="grid grid-cols-3 gap-1">
+                <div></div>
+                <button data-p2-touch="up" class="touch-btn w-10 h-10 text-xs border-rose-400">▲</button>
+                <div></div>
+                <button data-p2-touch="left" class="touch-btn w-10 h-10 text-xs">◀</button>
+                <button data-p2-touch="down" class="touch-btn w-10 h-10 text-[10px] border-amber-400">🛡️</button>
+                <button data-p2-touch="right" class="touch-btn w-10 h-10 text-xs">▶</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN MENU / MODE SELECTION MODAL -->
+    <div id="menu-modal" class="absolute inset-0 bg-slate-950/88 backdrop-blur-md z-30 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div class="max-w-2xl w-full bg-slate-900 border-2 border-cyan-500/60 rounded-2xl p-4 sm:p-7 shadow-[0_0_50px_rgba(0,240,255,0.25)] flex flex-col items-center text-center relative overflow-hidden my-auto">
+            <div class="absolute -top-24 -left-24 w-48 h-48 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-rose-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+            <span class="px-3 py-0.5 rounded-full bg-cyan-950 border border-cyan-500/50 text-cyan-300 text-[10px] sm:text-xs font-bold tracking-widest uppercase mb-1">PHIÊN BẢN MOBILE & ONLINE MULTIPLAYER</span>
+            <h1 class="text-2xl sm:text-5xl font-black italic tracking-wider text-white text-glow-cyan mb-1">STICKMAN VÕ ĐẠO</h1>
+            <p class="text-slate-400 text-xs sm:text-sm mb-4">Cảm ứng đa điểm • Kết nối 2 Điện Thoại • Tuyệt kỹ trảm hồn</p>
+
+            <!-- Mode Selection (4 Modes) -->
+            <div class="w-full space-y-2 mb-4">
+                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider text-left">CHỌN CHẾ ĐỘ CHƠI:</div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <button data-mode="ai" class="mode-btn btn-arcade active-mode rounded-xl p-2.5 flex flex-col items-center">
+                        <span class="text-lg">🤖</span>
+                        <span class="font-extrabold text-xs sm:text-sm text-white mt-0.5">ĐẤU VỚI MÁY</span>
+                        <span class="text-[10px] text-cyan-200">Luyện võ cùng AI</span>
+                    </button>
+                    <button data-mode="online" class="mode-btn btn-arcade rounded-xl p-2.5 flex flex-col items-center relative">
+                        <span class="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 bg-rose-600 text-[9px] font-black rounded-full text-white animate-bounce">HOT</span>
+                        <span class="text-lg">📱⚡📱</span>
+                        <span class="font-extrabold text-xs sm:text-sm text-amber-300 mt-0.5">ĐẤU ONLINE</span>
+                        <span class="text-[10px] text-slate-300">Kết nối 2 Điện Thoại</span>
+                    </button>
+                    <button data-mode="pvp" class="mode-btn btn-arcade rounded-xl p-2.5 flex flex-col items-center">
+                        <span class="text-lg">⚔️</span>
+                        <span class="font-extrabold text-xs sm:text-sm text-white mt-0.5">2 NGƯỜI 1 MÁY</span>
+                        <span class="text-[10px] text-slate-300">Chia đôi nút / Phím</span>
+                    </button>
+                    <button data-mode="training" class="mode-btn btn-arcade rounded-xl p-2.5 flex flex-col items-center">
+                        <span class="text-lg">🥋</span>
+                        <span class="font-extrabold text-xs sm:text-sm text-white mt-0.5">PHÒNG TẬP</span>
+                        <span class="text-[10px] text-slate-300">Test Combo 100% MP</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- SECTION 1: AI Difficulty Selection -->
+            <div id="ai-diff-section" class="w-full space-y-2 mb-4">
+                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider text-left">ĐỘ KHÓ CỦA MÁY (AI):</div>
+                <div class="grid grid-cols-3 gap-2">
+                    <button data-diff="easy" class="diff-btn py-2 rounded-lg border border-slate-700 bg-slate-800/80 text-xs font-bold text-slate-300 hover:border-cyan-400">DỄ (Tân Thủ)</button>
+                    <button data-diff="normal" class="diff-btn py-2 rounded-lg border border-cyan-400 bg-cyan-900/60 text-xs font-bold text-white shadow-[0_0_10px_rgba(0,240,255,0.3)]">THƯỜNG (Võ Sư)</button>
+                    <button data-diff="hard" class="diff-btn py-2 rounded-lg border border-slate-700 bg-slate-800/80 text-xs font-bold text-rose-400 hover:border-rose-500">KHÓ (Cao Thủ)</button>
+                </div>
+            </div>
+
+            <!-- SECTION 2: ONLINE 2-PHONE ROOM LOBBY -->
+            <div id="online-lobby-section" class="hidden w-full bg-slate-950/90 border-2 border-amber-500/50 rounded-xl p-3.5 mb-4 text-left space-y-3">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <div>
+                        <h3 class="text-xs sm:text-sm font-black text-amber-400 uppercase tracking-wider">🌐 KẾT NỐI 2 ĐIỆN THOẠI / 2 MÁY TÍNH</h3>
+                        <p class="text-[11px] text-slate-400">Một máy bấm Tạo Phòng lấy mã 4 số, máy kia nhập mã để giao đấu!</p>
+                    </div>
+                    <span id="lobby-net-badge" class="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-600 text-[10px] font-bold text-cyan-300">Sẵn sàng</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <!-- Host Room Card -->
+                    <div class="bg-slate-900/90 border border-cyan-500/40 rounded-lg p-3 flex flex-col justify-between">
+                        <div>
+                            <div class="text-xs font-extrabold text-cyan-300 mb-1">1. MÁY CHỦ (LÔI THẦN - P1)</div>
+                            <p class="text-[11px] text-slate-400 mb-2">Tạo phòng và gửi mã 4 số cho bạn bè:</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button id="btn-create-room" class="flex-1 py-2 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs uppercase tracking-wider shadow transition">
+                                + TẠO PHÒNG MỚI
+                            </button>
+                            <div id="host-code-box" class="hidden flex items-center gap-1.5 bg-slate-950 border border-cyan-400 px-2.5 py-1.5 rounded-lg">
+                                <span id="generated-room-code" class="font-mono text-base font-black text-amber-300 tracking-widest">----</span>
+                                <button id="btn-copy-code" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-cyan-300 px-1.5 py-0.5 rounded border border-slate-600">COPY</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Join Room Card -->
+                    <div class="bg-slate-900/90 border border-rose-500/40 rounded-lg p-3 flex flex-col justify-between">
+                        <div>
+                            <div class="text-xs font-extrabold text-rose-400 mb-1">2. KHÁCH (HUYẾT ẢNH - P2)</div>
+                            <p class="text-[11px] text-slate-400 mb-2">Nhập mã 4 số từ điện thoại của bạn bè:</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input id="input-join-code" type="text" maxlength="4" placeholder="Nhập mã 4 số" class="w-full bg-slate-950 border border-slate-700 focus:border-rose-400 rounded-lg px-3 py-2 text-center font-mono text-sm font-black text-white tracking-widest uppercase outline-none">
+                            <button id="btn-join-room" class="py-2 px-4 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-wider shadow transition whitespace-nowrap">
+                                VÀO PHÒNG
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Connection Status Message -->
+                <div id="online-lobby-status" class="text-center text-xs font-bold text-amber-300 bg-slate-900/80 py-1.5 px-3 rounded-lg border border-slate-800">
+                    💡 Chọn "Tạo Phòng Mới" hoặc nhập mã 4 chữ số để kết nối 2 máy.
+                </div>
+            </div>
+
+            <!-- Controls Overview Box -->
+            <div class="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 mb-4 text-left grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[11px]">
+                <div>
+                    <div class="font-extrabold text-cyan-400 mb-0.5">📱 ĐIỆN THOẠI & MÁY TÍNH BẢNG:</div>
+                    <div class="text-slate-300">• Tự động hiện <span class="text-white font-semibold">Cụm Phím Ảo Cánh Cung</span> đa điểm.</div>
+                    <div class="text-slate-300">• Nút <span class="text-rose-400 font-semibold">Tuyệt Kỹ (I)</span> phát sáng rực rỡ khi đủ 100% Nội Lực.</div>
+                </div>
+                <div>
+                    <div class="font-extrabold text-amber-400 mb-0.5">⌨️ PHÍM CỨNG (PC / LAPTOP):</div>
+                    <div class="text-slate-300">• P1: <span class="text-white font-mono">W,A,S,D</span> | Đánh: <span class="text-white font-mono">J, K, U, O, I</span> | Lướt: <span class="text-white font-mono">Shift</span></div>
+                    <div class="text-slate-300">• P2: <span class="text-white font-mono">Mũi Tên</span> | Đánh: <span class="text-white font-mono">Phím số 1, 2, 3, 4, 5</span></div>
+                </div>
+            </div>
+
+            <button id="btn-start-fight" class="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-base sm:text-lg tracking-widest uppercase shadow-[0_0_25px_rgba(0,240,255,0.6)] transition transform hover:scale-[1.01] active:scale-95">
+                🔥 BẮT ĐẦU GIAO ĐẤU 🔥
+            </button>
+        </div>
+    </div>
+
+    <!-- VICTORY / KO BANNER OVERLAY -->
+    <div id="ko-overlay" class="hidden absolute inset-0 z-20 pointer-events-none flex flex-col items-center justify-center bg-black/45 backdrop-blur-[2px]">
+        <div id="ko-main-text" class="text-6xl sm:text-8xl font-black italic tracking-tighter text-white text-glow-gold animate-pulse-fast">
+            K.O.!
+        </div>
+        <div id="ko-sub-text" class="text-xl sm:text-3xl font-extrabold text-cyan-300 tracking-widest uppercase mt-2 mb-6">
+            LÔI THẦN CHIẾN THẮNG!
+        </div>
+        <div class="flex gap-4 pointer-events-auto">
+            <button id="btn-rematch" class="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-slate-950 font-black text-base uppercase tracking-wider shadow-[0_0_25px_rgba(245,158,11,0.7)] hover:scale-105 transition">
+                🔄 TÁI ĐẤU NGAY
+            </button>
+            <button id="btn-back-menu" class="px-6 py-3 rounded-xl bg-slate-800 border border-slate-600 text-white font-bold text-base uppercase tracking-wider hover:bg-slate-700 transition">
+                ⚙️ ĐỔI CHẾ ĐỘ
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- FIREBASE & MULTIPLAYER NETWORKING MODULE -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+// Setup Hybrid Online Manager (Supports both Firestore Cloud Rooms & PeerJS WebRTC P2P for cross-device 4-digit codes)
+const NetManager = {
+    active: false,
+    role: 'host', // 'host' (P1) or 'guest' (P2)
+    roomCode: null,
+    connected: false,
+    pingMs: 18,
+    lastPingSent: 0,
+    peer: null,
+    conn: null,
+    db: null,
+    auth: null,
+    unsubFirestore: null,
+    appId: typeof __app_id !== 'undefined' ? __app_id : 'stickman-vo-dao-app',
+    remoteInput: {
+        left: false, right: false, up: false, down: false,
+        light: false, heavy: false, dash: false,
+        skillKi: false, skillDragon: false, ult: false
+    },
+    lastSyncTime: 0,
+
+    async initFirebase() {
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                const firebaseConfig = JSON.parse(__firebase_config);
+                const app = initializeApp(firebaseConfig);
+                this.auth = getAuth(app);
+                this.db = getFirestore(app);
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(this.auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(this.auth);
+                }
+            }
+        } catch (err) {
+            console.warn("Firebase fallback to PeerJS WebRTC:", err);
+        }
+    },
+
+    cleanup() {
+        this.connected = false;
+        if (this.conn) {
+            try { this.conn.close(); } catch (e) {}
+            this.conn = null;
+        }
+        if (this.peer) {
+            try { this.peer.destroy(); } catch (e) {}
+            this.peer = null;
+        }
+        if (this.unsubFirestore) {
+            this.unsubFirestore();
+            this.unsubFirestore = null;
+        }
+    },
+
+    setStatusText(msg, colorClass = 'text-amber-300') {
+        const el = document.getElementById('online-lobby-status');
+        if (el) {
+            el.className = `text-center text-xs font-bold ${colorClass} bg-slate-900/80 py-1.5 px-3 rounded-lg border border-slate-800`;
+            el.textContent = msg;
+        }
+    },
+
+    async hostRoom() {
+        this.cleanup();
+        this.role = 'host';
+        this.active = true;
+        this.roomCode = String(Math.floor(1000 + Math.random() * 9000));
+
+        document.getElementById('host-code-box').classList.remove('hidden');
+        document.getElementById('generated-room-code').textContent = this.roomCode;
+        document.getElementById('lobby-net-badge').textContent = `Mã: ${this.roomCode}`;
+        this.setStatusText(`⏳ Đang chờ Điện Thoại 2 nhập mã [${this.roomCode}]...`, 'text-cyan-300');
+
+        // 1. Setup PeerJS WebRTC Host
+        if (window.Peer) {
+            try {
+                this.peer = new Peer(`stickman-vodao-${this.roomCode}`);
+                this.peer.on('connection', (conn) => {
+                    this.conn = conn;
+                    this.setupPeerConnection();
+                });
+            } catch (e) {
+                console.warn("PeerJS init warning:", e);
+            }
+        }
+
+        // 2. Also create room document in Firestore if available
+        if (this.db && this.auth?.currentUser) {
+            try {
+                const roomRef = doc(this.db, 'artifacts', this.appId, 'public', 'data', 'rooms', this.roomCode);
+                await setDoc(roomRef, {
+                    hostId: this.auth.currentUser.uid,
+                    status: 'waiting',
+                    createdAt: Date.now()
+                });
+                this.unsubFirestore = onSnapshot(roomRef, (snap) => {
+                    const data = snap.data();
+                    if (!data) return;
+                    if (data.status === 'connected' && !this.connected) {
+                        this.onMatchConnected();
+                    }
+                    if (data.guestInput && !this.conn) {
+                        this.remoteInput = data.guestInput;
+                    }
+                    if (data.rematchRequested && window.gameState?.roundOver) {
+                        window.startMatch(true);
+                    }
+                }, (err) => console.warn("Firestore room snapshot error:", err));
+            } catch (e) {
+                console.warn("Firestore host room fallback:", e);
+            }
+        }
+    },
+
+    async joinRoom(code) {
+        const cleanCode = (code || '').trim();
+        if (cleanCode.length !== 4) {
+            this.setStatusText('⚠️ Vui lòng nhập đúng Mã Phòng 4 chữ số!', 'text-rose-400');
+            return;
+        }
+        this.cleanup();
+        this.role = 'guest';
+        this.active = true;
+        this.roomCode = cleanCode;
+        this.setStatusText(`🔄 Đang kết nối vào phòng [${cleanCode}]...`, 'text-amber-300');
+
+        // 1. Connect via PeerJS WebRTC
+        if (window.Peer) {
+            try {
+                this.peer = new Peer();
+                this.peer.on('open', () => {
+                    const conn = this.peer.connect(`stickman-vodao-${cleanCode}`, { reliable: false });
+                    this.conn = conn;
+                    this.setupPeerConnection();
+                });
+            } catch (e) {
+                console.warn("PeerJS join warning:", e);
+            }
+        }
+
+        // 2. Also connect via Firestore Room if available
+        if (this.db && this.auth?.currentUser) {
+            try {
+                const roomRef = doc(this.db, 'artifacts', this.appId, 'public', 'data', 'rooms', cleanCode);
+                const snap = await getDoc(roomRef);
+                if (snap.exists()) {
+                    await updateDoc(roomRef, {
+                        guestId: this.auth.currentUser.uid,
+                        status: 'connected'
+                    });
+                    this.unsubFirestore = onSnapshot(roomRef, (docSnap) => {
+                        const data = docSnap.data();
+                        if (!data) return;
+                        if (!this.connected && data.status === 'connected') {
+                            this.onMatchConnected();
+                        }
+                        if (data.stateSnapshot && !this.conn && window.applyNetworkSnapshot) {
+                            window.applyNetworkSnapshot(data.stateSnapshot);
+                        }
+                        if (data.rematchRequested && window.gameState?.roundOver) {
+                            window.startMatch(true);
+                        }
+                    }, (err) => console.warn("Firestore guest snapshot err:", err));
+                }
+            } catch (e) {
+                console.warn("Firestore join fallback:", e);
+            }
+        }
+    },
+
+    setupPeerConnection() {
+        if (!this.conn) return;
+        this.conn.on('open', () => {
+            this.onMatchConnected();
+        });
+        this.conn.on('data', (packet) => {
+            if (!packet) return;
+            if (packet.type === 'ping') {
+                this.conn.send({ type: 'pong', t: packet.t });
+            } else if (packet.type === 'pong') {
+                this.pingMs = Math.max(5, Math.min(999, Math.round((performance.now() - packet.t) * 0.5)));
+                const badge = document.getElementById('online-ping-badge');
+                if (badge) badge.textContent = `● ${this.pingMs}ms`;
+            } else if (packet.type === 'guestInput' && this.role === 'host') {
+                this.remoteInput = packet.input;
+            } else if (packet.type === 'stateSnapshot' && this.role === 'guest') {
+                if (window.applyNetworkSnapshot) window.applyNetworkSnapshot(packet.state);
+            } else if (packet.type === 'rematch') {
+                if (window.startMatch) window.startMatch(true);
+            }
+        });
+        this.conn.on('close', () => {
+            this.connected = false;
+            const st = document.getElementById('online-conn-state');
+            if (st) {
+                st.textContent = '⚠️ Mất kết nối';
+                st.className = 'text-rose-400';
+            }
+        });
+    },
+
+    onMatchConnected() {
+        if (this.connected) return;
+        this.connected = true;
+        this.setStatusText(`✅ Đã kết nối 2 máy thành công! Đang vào trận...`, 'text-emerald-400');
+        document.getElementById('lobby-net-badge').textContent = 'Đã kết nối';
+        setTimeout(() => {
+            if (window.gameConfig.mode === 'online') {
+                window.startMatch(true);
+            }
+        }, 450);
+    },
+
+    sendGuestInput(inputObj) {
+        if (!this.connected || this.role !== 'guest') return;
+        if (this.conn && this.conn.open) {
+            this.conn.send({ type: 'guestInput', input: inputObj });
+        } else if (this.db && this.auth?.currentUser && this.roomCode) {
+            const now = performance.now();
+            if (now - this.lastSyncTime > 45) {
+                this.lastSyncTime = now;
+                const roomRef = doc(this.db, 'artifacts', this.appId, 'public', 'data', 'rooms', this.roomCode);
+                updateDoc(roomRef, { guestInput: inputObj }).catch(() => {});
+            }
+        }
+    },
+
+    sendHostSnapshot(snapshotObj) {
+        if (!this.connected || this.role !== 'host') return;
+        const now = performance.now();
+        if (this.conn && this.conn.open) {
+            this.conn.send({ type: 'stateSnapshot', state: snapshotObj });
+            if (now - this.lastPingSent > 1500) {
+                this.lastPingSent = now;
+                this.conn.send({ type: 'ping', t: now });
+            }
+        } else if (this.db && this.auth?.currentUser && this.roomCode) {
+            if (now - this.lastSyncTime > 55) {
+                this.lastSyncTime = now;
+                const roomRef = doc(this.db, 'artifacts', this.appId, 'public', 'data', 'rooms', this.roomCode);
+                updateDoc(roomRef, { stateSnapshot: snapshotObj }).catch(() => {});
+            }
+        }
+    },
+
+    sendRematch() {
+        if (this.conn && this.conn.open) {
+            this.conn.send({ type: 'rematch' });
+        } else if (this.db && this.auth?.currentUser && this.roomCode) {
+            const roomRef = doc(this.db, 'artifacts', this.appId, 'public', 'data', 'rooms', this.roomCode);
+            updateDoc(roomRef, { rematchRequested: Date.now() }).catch(() => {});
+        }
+    }
+};
+
+window.NetManager = NetManager;
+NetManager.initFirebase();
+</script>
+
+<script>
+/**
+ * ============================================================================
+ * STICKMAN VÕ ĐẠO - ENGINE ĐỐI KHÁNG 2D (MOBILE + ONLINE EDITION)
+ * Procedural Stickman Kinematics, Combo Chains, Anime VFX & Multi-touch Gamepad
+ * ============================================================================
+ */
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Virtual resolution for consistent physics & framing
+const V_WIDTH = 1280;
+const V_HEIGHT = 720;
+const GROUND_Y = 595;
+
+// Resize handler
+function resizeCanvas() {
+    canvas.width = V_WIDTH;
+    canvas.height = V_HEIGHT;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ============================================================================
+// 1. WEB AUDIO SYNTHESIZER (Procedural Martial Arts Sound Effects)
+// ============================================================================
+class SoundSystem {
+    constructor() {
+        this.ctx = null;
+        this.enabled = true;
+    }
+
+    init() {
+        if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+    }
+
+    playSwing(pitch = 1.0) {
+        if (!this.enabled || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(260 * pitch, now);
+        osc.frequency.exponentialRampToValueAtTime(65 * pitch, now + 0.11);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.11);
+    }
+
+    playHit(heavy = false) {
+        if (!this.enabled || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        
+        // Impact thud
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = heavy ? 'sawtooth' : 'triangle';
+        osc.frequency.setValueAtTime(heavy ? 150 : 210, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + (heavy ? 0.22 : 0.12));
+        gain.gain.setValueAtTime(heavy ? 0.38 : 0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + (heavy ? 0.22 : 0.12));
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + (heavy ? 0.22 : 0.12));
+
+        // Crisp noise burst
+        const bufferSize = this.ctx.sampleRate * (heavy ? 0.15 : 0.08);
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.4));
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const nGain = this.ctx.createGain();
+        nGain.gain.setValueAtTime(heavy ? 0.35 : 0.2, now);
+        nGain.gain.exponentialRampToValueAtTime(0.01, now + (heavy ? 0.15 : 0.08));
+        noise.connect(nGain);
+        nGain.connect(this.ctx.destination);
+        noise.start(now);
+    }
+
+    playBlock() {
+        if (!this.enabled || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(280, now + 0.08);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.08);
+    }
+
+    playKiBlast() {
+        if (!this.enabled || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(480, now);
+        osc.frequency.exponentialRampToValueAtTime(140, now + 0.25);
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.25);
+    }
+
+    playUltimateStart() {
+        if (!this.enabled || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.35);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.4);
+    }
+}
+
+const sfx = new SoundSystem();
+
+// ============================================================================
+// 2. INPUT MANAGER (Keyboard + Mobile Touch)
+// ============================================================================
+const keys = {};
+const justPressed = {};
+
+window.addEventListener('keydown', (e) => {
+    sfx.init();
+    if (!keys[e.code]) {
+        justPressed[e.code] = true;
+    }
+    keys[e.code] = true;
+    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+        e.preventDefault();
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    keys[e.code] = false;
+});
+
+// ============================================================================
+// MULTI-TOUCH VIRTUAL GAMEPAD SYSTEM (Supports Simultaneous Move + Combo)
+// ============================================================================
+const touchStateP1 = {
+    left: false, right: false, up: false, down: false,
+    light: false, heavy: false, dash: false,
+    skillKi: false, skillDragon: false, ult: false
+};
+const touchJustPressedP1 = {};
+
+const touchStateP2 = {
+    left: false, right: false, up: false, down: false,
+    light: false, heavy: false, dash: false,
+    skillKi: false, skillDragon: false, ult: false
+};
+const touchJustPressedP2 = {};
+
+let virtualGamepadVisible = true;
+
+function bindMultiTouchButtons(selector, attrName, stateTarget, justPressedTarget) {
+    document.querySelectorAll(selector).forEach(btn => {
+        const action = btn.getAttribute(attrName);
+        const activate = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            sfx.init();
+            btn.classList.add('pressed');
+            if (!stateTarget[action]) {
+                justPressedTarget[action] = true;
+            }
+            stateTarget[action] = true;
+        };
+        const deactivate = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            btn.classList.remove('pressed');
+            stateTarget[action] = false;
+        };
+
+        btn.addEventListener('touchstart', activate, { passive: false });
+        btn.addEventListener('touchend', deactivate, { passive: false });
+        btn.addEventListener('touchcancel', deactivate, { passive: false });
+        btn.addEventListener('mousedown', activate);
+        btn.addEventListener('mouseup', deactivate);
+        btn.addEventListener('mouseleave', deactivate);
+    });
+}
+
+// Bind Single/Online Arc Pad & Split 2P Mobile Pad
+bindMultiTouchButtons('#mobile-controls-single [data-touch-action]', 'data-touch-action', touchStateP1, touchJustPressedP1);
+bindMultiTouchButtons('#mobile-controls-split [data-p1-touch]', 'data-p1-touch', touchStateP1, touchJustPressedP1);
+bindMultiTouchButtons('#mobile-controls-split [data-p2-touch]', 'data-p2-touch', touchStateP2, touchJustPressedP2);
+
+function updateTouchControlsVisibility() {
+    const singlePad = document.getElementById('mobile-controls-single');
+    const splitPad = document.getElementById('mobile-controls-split');
+    const toggleBtn = document.getElementById('btn-toggle-touch');
+
+    if (!virtualGamepadVisible) {
+        singlePad.classList.add('hidden');
+        splitPad.classList.add('hidden');
+        toggleBtn.textContent = '📱 PHÍM ẢO: TẮT';
+        toggleBtn.className = 'px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-slate-800/90 text-slate-400 border border-slate-600 rounded shadow transition';
+        return;
+    }
+
+    toggleBtn.textContent = '📱 PHÍM ẢO: BẬT';
+    toggleBtn.className = 'px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-bold bg-emerald-950/90 hover:bg-emerald-900 text-emerald-300 border border-emerald-600 rounded shadow transition';
+
+    if (gameConfig.mode === 'pvp') {
+        singlePad.classList.add('hidden');
+        splitPad.classList.remove('hidden');
+    } else {
+        splitPad.classList.add('hidden');
+        singlePad.classList.remove('hidden');
+    }
+}
+
+// ============================================================================
+// 3. ATTACK & SKILL DEFINITIONS (Frame Data & Properties)
+// ============================================================================
+const MOVES = {
+    LIGHT_1: {
+        name: 'Trực Quyền',
+        duration: 16, activeStart: 4, activeEnd: 10,
+        damage: 32, manaGain: 7,
+        knockbackX: 4, knockbackY: -1, hitstun: 16, hitstop: 3,
+        reachX: 78, reachY: 55, offsetY: -55,
+        limb: 'rightArm'
+    },
+    LIGHT_2: {
+        name: 'Hoành Quyền',
+        duration: 18, activeStart: 5, activeEnd: 11,
+        damage: 42, manaGain: 8,
+        knockbackX: 6, knockbackY: -2, hitstun: 18, hitstop: 4,
+        reachX: 85, reachY: 55, offsetY: -55,
+        limb: 'leftArm'
+    },
+    LIGHT_3: {
+        name: ' Toàn Phong Cước',
+        duration: 22, activeStart: 6, activeEnd: 14,
+        damage: 55, manaGain: 10,
+        knockbackX: 8, knockbackY: -4, hitstun: 22, hitstop: 5,
+        reachX: 98, reachY: 65, offsetY: -50,
+        limb: 'rightLeg'
+    },
+    LIGHT_4: {
+        name: 'Thăng Thiên Phá',
+        duration: 28, activeStart: 7, activeEnd: 16,
+        damage: 78, manaGain: 14,
+        knockbackX: 11, knockbackY: -13.5, hitstun: 32, hitstop: 8,
+        reachX: 95, reachY: 85, offsetY: -65,
+        limb: 'bothArms', heavyEffect: true
+    },
+    HEAVY_GROUND: {
+        name: 'Bá Vương Trọng Kích',
+        duration: 30, activeStart: 10, activeEnd: 19,
+        damage: 95, manaGain: 15,
+        knockbackX: 16, knockbackY: -7, hitstun: 30, hitstop: 9,
+        reachX: 108, reachY: 70, offsetY: -50,
+        limb: 'rightArm', heavyEffect: true
+    },
+    HEAVY_AIR: {
+        name: 'Thiên Thạch Trụy',
+        duration: 28, activeStart: 6, activeEnd: 22,
+        damage: 85, manaGain: 12,
+        knockbackX: 9, knockbackY: 14, hitstun: 28, hitstop: 8,
+        reachX: 95, reachY: 90, offsetY: -20,
+        limb: 'rightLeg', heavyEffect: true
+    },
+    SKILL_KI: {
+        name: 'Chưởng Ki Công',
+        duration: 24, fireFrame: 10,
+        manaCost: 20, damage: 75,
+        limb: 'rightArm'
+    },
+    SKILL_DRAGON: {
+        name: 'Long Thăng Quyền',
+        duration: 32, activeStart: 4, activeEnd: 22,
+        manaCost: 30, damage: 115, manaGain: 0,
+        knockbackX: 7, knockbackY: -16.5, hitstun: 38, hitstop: 9,
+        reachX: 92, reachY: 115, offsetY: -75,
+        limb: 'rightArm', heavyEffect: true
+    },
+    ULTIMATE: {
+        name: 'Tuyệt Kỹ: Liên Hoàn Trảm',
+        duration: 78,
+        manaCost: 100
+    }
+};
+
+// ============================================================================
+// 4. VISUAL EFFECTS MANAGER (Particles, Shockwaves, Slash Lines, Text)
+// ============================================================================
+const particles = [];
+const shockwaves = [];
+const slashEffects = [];
+const projectiles = [];
+const floatingTexts = [];
+const backgroundLanterns = [];
+
+// Populate atmospheric dojo dust/embers
+for (let i = 0; i < 35; i++) {
+    backgroundLanterns.push({
+        x: Math.random() * V_WIDTH,
+        y: Math.random() * (GROUND_Y - 40),
+        r: Math.random() * 2.5 + 1,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: -Math.random() * 0.5 - 0.2,
+        alpha: Math.random() * 0.6 + 0.2
+    });
+}
+
+function spawnHitSparks(x, y, color, count = 18, heavy = false) {
+    for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = (Math.random() * (heavy ? 14 : 9)) + 3;
+        particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() * (heavy ? 6 : 4) + 2,
+            color: i % 3 === 0 ? '#ffffff' : color,
+            life: 1.0,
+            decay: Math.random() * 0.04 + 0.03,
+            spark: true
+        });
+    }
+    shockwaves.push({
+        x, y,
+        radius: 8,
+        maxRadius: heavy ? 115 : 65,
+        color,
+        alpha: 1.0,
+        lineWidth: heavy ? 6 : 3
+    });
+}
+
+function spawnGroundDust(x, y, dir = 0) {
+    for (let i = 0; i < 10; i++) {
+        particles.push({
+            x: x + (Math.random() - 0.5) * 30,
+            y: y - 2,
+            vx: dir * (Math.random() * 4 + 2) + (Math.random() - 0.5) * 4,
+            vy: -Math.random() * 3 - 0.5,
+            size: Math.random() * 6 + 4,
+            color: 'rgba(148, 163, 184, 0.6)',
+            life: 1.0,
+            decay: 0.04,
+            spark: false
+        });
+    }
+}
+
+function spawnSlashArc(x, y, color, angle = null) {
+    const a = angle !== null ? angle : (Math.random() * Math.PI * 2);
+    slashEffects.push({
+        x, y,
+        angle: a,
+        length: Math.random() * 90 + 130,
+        thickness: Math.random() * 6 + 6,
+        color,
+        life: 1.0
+    });
+}
+
+function spawnFloatingText(x, y, text, color = '#ffffff', size = 24) {
+    floatingTexts.push({
+        x, y,
+        text,
+        color,
+        size,
+        vy: -2.2,
+        life: 1.0
+    });
+}
+
+// ============================================================================
+// 5. PROCEDURAL 2D KINEMATICS & STICKMAN FIGHTER CLASS
+// ============================================================================
+function solveTwoBoneIK(rootX, rootY, targetX, targetY, len1, len2, bendDir) {
+    const dx = targetX - rootX;
+    const dy = targetY - rootY;
+    let dist = Math.hypot(dx, dy);
+    const maxLen = len1 + len2 - 0.01;
+    if (dist > maxLen) dist = maxLen;
+    if (dist < Math.abs(len1 - len2) + 0.01) dist = Math.abs(len1 - len2) + 0.01;
+
+    const baseAngle = Math.atan2(dy, dx);
+    const cosAngle = (len1 * len1 + dist * dist - len2 * len2) / (2 * len1 * dist);
+    const clampedCos = Math.max(-1, Math.min(1, cosAngle));
+    const angleOffset = Math.acos(clampedCos);
+    const jointAngle = baseAngle + bendDir * angleOffset;
+
+    const midX = rootX + Math.cos(jointAngle) * len1;
+    const midY = rootY + Math.sin(jointAngle) * len1;
+    const endX = rootX + (dx / (Math.hypot(dx, dy) || 1)) * dist;
+    const endY = rootY + (dy / (Math.hypot(dx, dy) || 1)) * dist;
+
+    return { midX, midY, endX, endY };
+}
+
+class Fighter {
+    constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.x = config.x;
+        this.y = GROUND_Y;
+        this.vx = 0;
+        this.vy = 0;
+        this.facing = config.facing; // 1 = Right, -1 = Left
+        this.color = config.color;
+        this.glowColor = config.glowColor;
+        this.headbandColor = config.headbandColor;
+
+        this.maxHp = 1000;
+        this.hp = 1000;
+        this.maxMana = 100;
+        this.mana = 50;
+
+        this.state = 'IDLE'; // IDLE, RUN, JUMP, BLOCK, DASH, ATTACK, HIT, KNOCKDOWN, ULTIMATE
+        this.stateTimer = 0;
+        this.animTick = 0;
+
+        // Combat & Combo State
+        this.currentMove = null;
+        this.moveKey = null;
+        this.moveFrame = 0;
+        this.hasHitCurrentMove = false;
+        this.comboStep = 0;
+        this.queuedNextCombo = false;
+        this.comboCounter = 0;
+        this.comboResetTimer = 0;
+
+        this.invulnerableTimer = 0;
+        this.dashCooldown = 0;
+
+        // Visual Trails
+        this.afterimages = [];
+        this.fistTrail = [];
+        this.headbandNodes = Array.from({ length: 6 }, () => ({ x: this.x, y: this.y - 95 }));
+    }
+
+    reset(x, facing) {
+        this.x = x;
+        this.y = GROUND_Y;
+        this.vx = 0;
+        this.vy = 0;
+        this.facing = facing;
+        this.hp = this.maxHp;
+        this.mana = gameConfig.mode === 'training' ? 100 : 50;
+        this.state = 'IDLE';
+        this.currentMove = null;
+        this.comboCounter = 0;
+        this.comboResetTimer = 0;
+        this.afterimages = [];
+        this.fistTrail = [];
+    }
+
+    isGrounded() {
+        return this.y >= GROUND_Y - 1;
+    }
+
+    startAttack(moveKey) {
+        const move = MOVES[moveKey];
+        if (!move) return;
+        if (move.manaCost && this.mana < move.manaCost) {
+            spawnFloatingText(this.x, this.y - 115, 'THIẾU NỘI LỰC!', '#fbbf24', 16);
+            return;
+        }
+        if (move.manaCost) {
+            this.mana = Math.max(0, this.mana - move.manaCost);
+        }
+
+        this.state = moveKey === 'ULTIMATE' ? 'ULTIMATE' : 'ATTACK';
+        this.moveKey = moveKey;
+        this.currentMove = move;
+        this.moveFrame = 0;
+        this.hasHitCurrentMove = false;
+        this.queuedNextCombo = false;
+        this.fistTrail = [];
+
+        // Initial velocity impulse per move
+        if (moveKey.startsWith('LIGHT_')) {
+            this.vx = this.facing * (moveKey === 'LIGHT_4' ? 8 : 5.5);
+            sfx.playSwing(1.0 + this.comboStep * 0.12);
+        } else if (moveKey === 'HEAVY_GROUND') {
+            this.vx = this.facing * 10;
+            sfx.playSwing(0.75);
+        } else if (moveKey === 'HEAVY_AIR') {
+            this.vx = this.facing * 7;
+            this.vy = 11;
+            sfx.playSwing(0.8);
+        } else if (moveKey === 'SKILL_DRAGON') {
+            this.vx = this.facing * 6.5;
+            this.vy = -15.5;
+            this.invulnerableTimer = 14;
+            sfx.playSwing(1.3);
+            spawnGroundDust(this.x, GROUND_Y, -this.facing);
+        } else if (moveKey === 'SKILL_KI') {
+            this.vx *= 0.3;
+        } else if (moveKey === 'ULTIMATE') {
+            this.invulnerableTimer = 85;
+            this.vx = this.facing * 14;
+            sfx.playUltimateStart();
+            gameState.cinematicDarkness = 65;
+            gameState.screenShake = 12;
+            spawnShockwaveRing(this.x, this.y - 50, this.glowColor, 160);
+        }
+    }
+
+    startDash(dir) {
+        if (this.dashCooldown > 0 || this.state === 'HIT' || this.state === 'ULTIMATE') return;
+        this.state = 'DASH';
+        this.stateTimer = 13;
+        this.dashCooldown = 28;
+        this.invulnerableTimer = 13;
+        this.vx = dir * 18;
+        this.vy = 0;
+        sfx.playSwing(1.5);
+        spawnGroundDust(this.x, this.y, -dir);
+    }
+
+    update(opponent, input) {
+        this.animTick++;
+        if (this.invulnerableTimer > 0) this.invulnerableTimer--;
+        if (this.dashCooldown > 0) this.dashCooldown--;
+
+        // Combo counter timeout on opponent
+        if (this.comboResetTimer > 0) {
+            this.comboResetTimer--;
+            if (this.comboResetTimer === 0) {
+                this.comboCounter = 0;
+            }
+        }
+
+        // Training mode auto-refills
+        if (gameConfig.mode === 'training') {
+            if (document.getElementById('chk-inf-mp').checked) {
+                this.mana = this.maxMana;
+            }
+            if (document.getElementById('chk-inf-hp').checked && this.state === 'IDLE') {
+                this.hp = Math.min(this.maxHp, this.hp + 8);
+            }
+        } else {
+            // Passive slight mana regeneration
+            this.mana = Math.min(this.maxMana, this.mana + 0.035);
+        }
+
+        // Auto face opponent when idle/moving
+        if (['IDLE', 'RUN', 'BLOCK'].includes(this.state)) {
+            if (Math.abs(opponent.x - this.x) > 12) {
+                this.facing = opponent.x > this.x ? 1 : -1;
+            }
+        }
+
+        // STATE MACHINE
+        if (this.state === 'HIT') {
+            this.stateTimer--;
+            this.vx *= 0.88;
+            if (this.stateTimer <= 0 && this.isGrounded()) {
+                this.state = 'IDLE';
+            }
+        } else if (this.state === 'DASH') {
+            this.stateTimer--;
+            if (this.stateTimer % 2 === 0) {
+                this.saveAfterimage();
+            }
+            if (this.stateTimer <= 0) {
+                this.state = this.isGrounded() ? 'IDLE' : 'JUMP';
+                this.vx *= 0.4;
+            }
+        } else if (this.state === 'ULTIMATE') {
+            this.updateUltimate(opponent);
+        } else if (this.state === 'ATTACK') {
+            this.updateAttack(opponent, input);
+        } else {
+            // Normal movement & action inputs
+            this.handleNeutralInputs(input);
+        }
+
+        // Physics Integration
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Gravity
+        if (this.y < GROUND_Y) {
+            this.vy += 0.82;
+        } else {
+            if (this.vy > 0) {
+                // Just landed
+                if (this.state === 'JUMP') this.state = 'IDLE';
+                if (this.state === 'HIT' && this.stateTimer <= 0) this.state = 'IDLE';
+                this.vy = 0;
+            }
+            this.y = GROUND_Y;
+        }
+
+        // Friction on ground
+        if (this.isGrounded() && !['RUN', 'DASH', 'ULTIMATE'].includes(this.state)) {
+            this.vx *= 0.78;
+        }
+
+        // Stage boundaries
+        const margin = 55;
+        if (this.x < margin) {
+            this.x = margin;
+            if (this.state === 'HIT') this.vx = Math.abs(this.vx) * 0.4; // Wall bounce
+        }
+        if (this.x > V_WIDTH - margin) {
+            this.x = V_WIDTH - margin;
+            if (this.state === 'HIT') this.vx = -Math.abs(this.vx) * 0.4;
+        }
+
+        // Fighter pushbox collision so they don't overlap completely
+        if (this.state !== 'DASH' && this.state !== 'ULTIMATE' && opponent.state !== 'ULTIMATE') {
+            const dx = this.x - opponent.x;
+            const dy = Math.abs(this.y - opponent.y);
+            const minDist = 42;
+            if (Math.abs(dx) < minDist && dy < 80) {
+                const push = (minDist - Math.abs(dx)) * 0.5;
+                if (dx >= 0) {
+                    this.x += push;
+                    opponent.x -= push;
+                } else {
+                    this.x -= push;
+                    opponent.x += push;
+                }
+            }
+        }
+
+        // Update Headband Cloth Physics
+        this.updateHeadband();
+
+        // Fade Afterimages & Fist Trails
+        for (let i = this.afterimages.length - 1; i >= 0; i--) {
+            this.afterimages[i].alpha -= 0.08;
+            if (this.afterimages[i].alpha <= 0) this.afterimages.splice(i, 1);
+        }
+        for (let i = this.fistTrail.length - 1; i >= 0; i--) {
+            this.fistTrail[i].alpha -= 0.14;
+            if (this.fistTrail[i].alpha <= 0) this.fistTrail.splice(i, 1);
+        }
+    }
+
+    handleNeutralInputs(input) {
+        if (input.dash) {
+            const dir = input.left ? -1 : (input.right ? 1 : this.facing);
+            this.startDash(dir);
+            return;
+        }
+
+        if (input.ult && this.mana >= 100) {
+            this.startAttack('ULTIMATE');
+            return;
+        }
+        if (input.skillDragon && this.mana >= MOVES.SKILL_DRAGON.manaCost) {
+            this.startAttack('SKILL_DRAGON');
+            return;
+        }
+        if (input.skillKi && this.mana >= MOVES.SKILL_KI.manaCost) {
+            this.startAttack('SKILL_KI');
+            return;
+        }
+        if (input.heavy) {
+            this.startAttack(this.isGrounded() ? 'HEAVY_GROUND' : 'HEAVY_AIR');
+            return;
+        }
+        if (input.light) {
+            this.comboStep = 1;
+            this.startAttack('LIGHT_1');
+            return;
+        }
+
+        if (input.down && this.isGrounded()) {
+            this.state = 'BLOCK';
+            this.vx *= 0.5;
+            return;
+        }
+
+        if (input.up && this.isGrounded()) {
+            this.vy = -15.5;
+            this.state = 'JUMP';
+            spawnGroundDust(this.x, GROUND_Y, 0);
+        }
+
+        if (input.left) {
+            this.vx = -6.8;
+            this.facing = -1;
+            if (this.isGrounded()) this.state = 'RUN';
+        } else if (input.right) {
+            this.vx = 6.8;
+            this.facing = 1;
+            if (this.isGrounded()) this.state = 'RUN';
+        } else {
+            if (this.isGrounded()) this.state = 'IDLE';
+        }
+    }
+
+    updateAttack(opponent, input) {
+        this.moveFrame++;
+        const move = this.currentMove;
+
+        // Buffer next light attack combo (J -> J -> J -> J)
+        if (this.moveKey.startsWith('LIGHT_') && this.comboStep < 4) {
+            if (input.light && this.moveFrame >= 4) {
+                this.queuedNextCombo = true;
+            }
+        }
+
+        // Can cancel light attacks into Special Skills on hit!
+        if (this.hasHitCurrentMove && this.moveKey.startsWith('LIGHT_')) {
+            if (input.ult && this.mana >= 100) {
+                this.startAttack('ULTIMATE');
+                return;
+            }
+            if (input.skillDragon && this.mana >= MOVES.SKILL_DRAGON.manaCost) {
+                this.startAttack('SKILL_DRAGON');
+                return;
+            }
+            if (input.skillKi && this.mana >= MOVES.SKILL_KI.manaCost) {
+                this.startAttack('SKILL_KI');
+                return;
+            }
+            if (input.heavy) {
+                this.startAttack(this.isGrounded() ? 'HEAVY_GROUND' : 'HEAVY_AIR');
+                return;
+            }
+        }
+
+        // Afterimage on heavy / dragon moves
+        if ((move.heavyEffect || this.moveKey === 'SKILL_DRAGON') && this.moveFrame % 3 === 0) {
+            this.saveAfterimage();
+        }
+        // Fireball / Sword Ki Wave spawn frame
+        if (this.moveKey === 'SKILL_KI' && this.moveFrame === move.fireFrame) {
+            sfx.playKiBlast();
+            projectiles.push({
+                owner: this,
+                x: this.x + this.facing * 52,
+                y: this.y - 58,
+                vx: this.facing * 16,
+                facing: this.facing,
+                radius: 24,
+                color: this.glowColor,
+                damage: move.damage,
+                life: 80
+            });
+            spawnHitSparks(this.x + this.facing * 45, this.y - 58, this.glowColor, 10, false);
+        }
+
+        // Check melee hitbox active window
+        if (move.activeStart && this.moveFrame >= move.activeStart && this.moveFrame <= move.activeEnd) {
+            if (!this.hasHitCurrentMove) {
+                const hitCenterX = this.x + this.facing * (move.reachX * 0.55);
+                const hitCenterY = this.y + move.offsetY;
+                const dx = Math.abs(opponent.x - hitCenterX);
+                const dy = Math.abs((opponent.y - 50) - hitCenterY);
+
+                if (dx <= move.reachX * 0.65 && dy <= move.reachY * 0.7) {
+                    this.hasHitCurrentMove = true;
+                    this.applyHitToOpponent(opponent, move);
+                }
+            }
+        }
+
+        // Transition to next combo step if queued
+        if (this.queuedNextCombo && this.moveFrame >= move.activeEnd) {
+            this.comboStep++;
+            this.startAttack('LIGHT_' + this.comboStep);
+            return;
+        }
+
+        // End of attack animation
+        if (this.moveFrame >= move.duration) {
+            this.state = this.isGrounded() ? 'IDLE' : 'JUMP';
+            this.currentMove = null;
+            this.comboStep = 0;
+        }
+    }
+
+    updateUltimate(opponent) {
+        this.moveFrame++;
+        gameState.cinematicDarkness = Math.max(0, 75 - this.moveFrame);
+
+        if (this.moveFrame === 8) {
+            // Initial dash check
+            const dist = Math.abs(opponent.x - this.x);
+            if (dist < 380) {
+                this.x = opponent.x - this.facing * 50;
+                opponent.state = 'HIT';
+                opponent.stateTimer = 70;
+                opponent.vx = 0;
+                opponent.vy = -4;
+            }
+        }
+
+        // Rapid omnislash strikes between frames 12 and 64
+        if (this.moveFrame >= 12 && this.moveFrame <= 64 && this.moveFrame % 6 === 0) {
+            const side = (this.moveFrame / 6) % 2 === 0 ? 1 : -1;
+            this.x = opponent.x + side * (Math.random() * 55 + 35);
+            this.y = opponent.y - (Math.random() * 65);
+            this.facing = opponent.x > this.x ? 1 : -1;
+            this.vx = 0;
+            this.vy = 0;
+            this.saveAfterimage();
+
+            // Deal slash damage
+            const slashDmg = 28;
+            opponent.hp = Math.max(0, opponent.hp - slashDmg);
+            opponent.state = 'HIT';
+            opponent.stateTimer = 25;
+            opponent.vx = 0;
+            opponent.vy = -2.5;
+
+            this.comboCounter++;
+            this.comboResetTimer = 95;
+
+            sfx.playHit(false);
+            gameState.screenShake = 8;
+            spawnSlashArc(opponent.x, opponent.y - 55, this.glowColor);
+            spawnHitSparks(opponent.x, opponent.y - 55, this.glowColor, 12, false);
+            spawnFloatingText(
+                opponent.x + (Math.random() - 0.5) * 60,
+                opponent.y - 90 - Math.random() * 40,
+                `-${slashDmg}`,
+                this.glowColor,
+                22
+            );
+        }
+
+        // Final explosive finisher at frame 70
+        if (this.moveFrame === 70) {
+            const finalDmg = 95;
+            opponent.hp = Math.max(0, opponent.hp - finalDmg);
+            opponent.state = 'HIT';
+            opponent.stateTimer = 42;
+            opponent.vx = this.facing * 16;
+            opponent.vy = -14;
+
+            this.comboCounter++;
+            this.comboResetTimer = 100;
+
+            sfx.playHit(true);
+            gameState.hitstop = 12;
+            gameState.screenShake = 22;
+            spawnSlashArc(opponent.x, opponent.y - 55, '#ffffff', 0.4);
+            spawnSlashArc(opponent.x, opponent.y - 55, this.glowColor, -0.4);
+            spawnHitSparks(opponent.x, opponent.y - 55, this.glowColor, 35, true);
+            spawnFloatingText(opponent.x, opponent.y - 120, `TUYỆT KỸ! -${finalDmg}`, '#fbbf24', 30);
+        }
+
+        if (this.moveFrame >= MOVES.ULTIMATE.duration) {
+            this.state = 'IDLE';
+            this.currentMove = null;
+        }
+    }
+
+    applyHitToOpponent(opponent, move) {
+        if (opponent.invulnerableTimer > 0) return;
+
+        const isBlocking = opponent.state === 'BLOCK' && opponent.facing !== this.facing;
+
+        if (isBlocking) {
+            const chipDmg = Math.max(2, Math.floor(move.damage * 0.18));
+            opponent.hp = Math.max(0, opponent.hp - chipDmg);
+            opponent.vx = this.facing * (move.knockbackX * 0.45);
+            this.mana = Math.min(this.maxMana, this.mana + move.manaGain * 0.5);
+            sfx.playBlock();
+            spawnHitSparks(opponent.x - opponent.facing * 15, opponent.y - 55, '#38bdf8', 8, false);
+            spawnFloatingText(opponent.x, opponent.y - 100, `ĐỠ ĐÒN -${chipDmg}`, '#94a3b8', 18);
+            return;
+        }
+
+        // Direct Hit!
+        opponent.hp = Math.max(0, opponent.hp - move.damage);
+        opponent.state = 'HIT';
+        opponent.stateTimer = move.hitstun;
+        opponent.vx = this.facing * move.knockbackX;
+        opponent.vy = move.knockbackY;
+
+        this.mana = Math.min(this.maxMana, this.mana + (move.manaGain || 0));
+        opponent.mana = Math.min(opponent.maxMana, opponent.mana + 5);
+
+        this.comboCounter++;
+        this.comboResetTimer = 90;
+
+        sfx.playHit(move.heavyEffect);
+        gameState.hitstop = move.hitstop || 4;
+        gameState.screenShake = move.heavyEffect ? 14 : 6;
+
+        const hitX = (this.x + opponent.x) / 2 + this.facing * 15;
+        const hitY = opponent.y - 55;
+        spawnHitSparks(hitX, hitY, this.glowColor, move.heavyEffect ? 24 : 14, move.heavyEffect);
+        if (move.heavyEffect) {
+            spawnSlashArc(hitX, hitY, this.glowColor);
+        }
+
+        spawnFloatingText(
+            opponent.x + (Math.random() - 0.5) * 30,
+            opponent.y - 105,
+            `-${move.damage}`,
+            move.heavyEffect ? '#fbbf24' : '#ffffff',
+            move.heavyEffect ? 28 : 22
+        );
+    }
+
+    updateHeadband() {
+        const pose = this.computeSkeletonPose();
+        this.headbandNodes[0].x = pose.head.x - this.facing * 6;
+        this.headbandNodes[0].y = pose.head.y - 3;
+
+        for (let i = 1; i < this.headbandNodes.length; i++) {
+            const prev = this.headbandNodes[i - 1];
+            const curr = this.headbandNodes[i];
+            const targetX = prev.x - this.facing * 9 - this.vx * 0.6;
+            const targetY = prev.y + Math.sin(this.animTick * 0.22 + i * 0.9) * 2.8 + 1.2;
+            curr.x += (targetX - curr.x) * 0.45;
+            curr.y += (targetY - curr.y) * 0.45;
+        }
+    }
+
+    saveAfterimage() {
+        this.afterimages.push({
+            pose: this.computeSkeletonPose(),
+            alpha: 0.55,
+            color: this.glowColor
+        });
+    }
+
+    computeSkeletonPose() {
+        const f = this.facing;
+        const t = this.animTick;
+
+        let hipX = this.x;
+        let hipY = this.y - 44;
+        let torsoLean = 0.12 * f;
+
+        // Relative targets from hip/shoulder
+        let lFoot = { x: -16 * f, y: 44 };
+        let rFoot = { x: 18 * f, y: 44 };
+        let lHand = { x: 14 * f, y: -15 };
+        let rHand = { x: 28 * f, y: -22 };
+
+        if (this.state === 'IDLE') {
+            const breathe = Math.sin(t * 0.12) * 3;
+            hipY += breathe;
+            lHand = { x: 16 * f, y: -18 + Math.cos(t * 0.12) * 3 };
+            rHand = { x: 30 * f, y: -26 + Math.sin(t * 0.12) * 3 };
+        } else if (this.state === 'RUN') {
+            torsoLean = 0.42 * f;
+            const cycle = t * 0.36;
+            hipY += Math.abs(Math.sin(cycle)) * -5;
+            lFoot = { x: Math.sin(cycle) * 32 * f, y: 44 - Math.max(0, Math.cos(cycle)) * 18 };
+            rFoot = { x: -Math.sin(cycle) * 32 * f, y: 44 - Math.max(0, -Math.cos(cycle)) * 18 };
+            lHand = { x: -Math.sin(cycle) * 26 * f, y: -16 };
+            rHand = { x: Math.sin(cycle) * 26 * f, y: -22 };
+        } else if (this.state === 'JUMP') {
+            torsoLean = 0.2 * f;
+            lFoot = { x: -14 * f, y: 30 };
+            rFoot = { x: 18 * f, y: 22 };
+            lHand = { x: -12 * f, y: -32 };
+            rHand = { x: 24 * f, y: -34 };
+        } else if (this.state === 'DASH') {
+            torsoLean = 0.65 * f;
+            hipY += 6;
+            lFoot = { x: -34 * f, y: 38 };
+            rFoot = { x: 10 * f, y: 42 };
+            lHand = { x: -28 * f, y: -10 };
+            rHand = { x: -20 * f, y: -18 };
+        } else if (this.state === 'BLOCK') {
+            torsoLean = -0.1 * f;
+            hipY += 8;
+            lFoot = { x: -22 * f, y: 36 };
+            rFoot = { x: 22 * f, y: 36 };
+            lHand = { x: 22 * f, y: -32 };
+            rHand = { x: 26 * f, y: -24 };
+        } else if (this.state === 'HIT') {
+            torsoLean = -0.45 * f;
+            lFoot = { x: -12 * f, y: 40 };
+            rFoot = { x: 20 * f, y: 36 };
+            lHand = { x: -18 * f, y: -35 };
+            rHand = { x: 15 * f, y: -38 };
+        } else if (this.state === 'ATTACK' || this.state === 'ULTIMATE') {
+            const p = this.currentMove ? Math.min(1, this.moveFrame / this.currentMove.duration) : 0.5;
+            const swing = Math.sin(p * Math.PI);
+
+            if (this.moveKey === 'LIGHT_1') {
+                torsoLean = 0.28 * f;
+                rHand = { x: (20 + swing * 56) * f, y: -28 };
+                lHand = { x: 10 * f, y: -18 };
+            } else if (this.moveKey === 'LIGHT_2') {
+                torsoLean = 0.35 * f;
+                lHand = { x: (18 + swing * 62) * f, y: -26 };
+                rHand = { x: -10 * f, y: -16 };
+            } else if (this.moveKey === 'LIGHT_3') {
+                torsoLean = -0.25 * f;
+                rFoot = { x: (15 + swing * 68) * f, y: 20 - swing * 48 };
+                lFoot = { x: -10 * f, y: 44 };
+                rHand = { x: -22 * f, y: -20 };
+                lHand = { x: 24 * f, y: -28 };
+            } else if (this.moveKey === 'LIGHT_4' || this.moveKey === 'SKILL_DRAGON') {
+                torsoLean = -0.18 * f;
+                rHand = { x: (25 + swing * 35) * f, y: -15 - swing * 65 };
+                lHand = { x: (15 + swing * 25) * f, y: -10 - swing * 50 };
+                rFoot = { x: 22 * f, y: 24 };
+                lFoot = { x: -16 * f, y: 36 };
+            } else if (this.moveKey === 'HEAVY_GROUND') {
+                torsoLean = (-0.2 + swing * 0.75) * f;
+                rHand = { x: (-15 + swing * 90) * f, y: -55 + swing * 45 };
+                lHand = { x: (-10 + swing * 70) * f, y: -45 + swing * 35 };
+                rFoot = { x: 32 * f, y: 44 };
+                lFoot = { x: -26 * f, y: 44 };
+            } else if (this.moveKey === 'HEAVY_AIR') {
+                torsoLean = 0.4 * f;
+                rFoot = { x: (20 + swing * 48) * f, y: 10 + swing * 38 };
+                lFoot = { x: -18 * f, y: 20 };
+                rHand = { x: -20 * f, y: -30 };
+            } else if (this.moveKey === 'SKILL_KI') {
+                torsoLean = 0.32 * f;
+                rHand = { x: 52 * f, y: -25 };
+                lHand = { x: 46 * f, y: -22 };
+            } else if (this.moveKey === 'ULTIMATE') {
+                torsoLean = 0.55 * f;
+                rHand = { x: Math.cos(t * 0.8) * 55 * f, y: -25 + Math.sin(t * 0.8) * 35 };
+                lHand = { x: -Math.cos(t * 0.8) * 45 * f, y: -20 - Math.sin(t * 0.8) * 30 };
+            }
+        }
+
+        const shoulderX = hipX + Math.sin(torsoLean) * 38;
+        const shoulderY = hipY - Math.cos(torsoLean) * 38;
+        const headX = shoulderX + Math.sin(torsoLean * 0.8) * 16;
+        const headY = shoulderY - Math.cos(torsoLean * 0.8) * 16;
+
+        // Solve 2-bone IK for limbs
+        const leftLegIK = solveTwoBoneIK(hipX, hipY, hipX + lFoot.x, hipY + lFoot.y, 23, 23, f);
+        const rightLegIK = solveTwoBoneIK(hipX, hipY, hipX + rFoot.x, hipY + rFoot.y, 23, 23, f);
+        const leftArmIK = solveTwoBoneIK(shoulderX, shoulderY, shoulderX + lHand.x, shoulderY + lHand.y, 20, 20, -f);
+        const rightArmIK = solveTwoBoneIK(shoulderX, shoulderY, shoulderX + rHand.x, shoulderY + rHand.y, 20, 20, -f);
+
+        // Record glowing trail for active attacking limb
+        if (this.state === 'ATTACK' && this.currentMove) {
+            let tip = rightArmIK;
+            if (this.currentMove.limb === 'leftArm') tip = leftArmIK;
+            if (this.currentMove.limb === 'rightLeg') tip = rightLegIK;
+            this.fistTrail.push({ x: tip.endX, y: tip.endY, alpha: 0.9 });
+        }
+
+        return {
+            hip: { x: hipX, y: hipY },
+            shoulder: { x: shoulderX, y: shoulderY },
+            head: { x: headX, y: headY },
+            leftLeg: leftLegIK,
+            rightLeg: rightLegIK,
+            leftArm: leftArmIK,
+            rightArm: rightArmIK
+        };
+    }
+
+    draw(ctx) {
+        // 1. Draw Afterimages
+        for (const img of this.afterimages) {
+            this.drawPose(ctx, img.pose, img.color, img.alpha * 0.5, true);
+        }
+
+        // 2. Draw Attack Limb Swing Trail
+        if (this.fistTrail.length > 1) {
+            ctx.save();
+            for (let i = 1; i < this.fistTrail.length; i++) {
+                const p0 = this.fistTrail[i - 1];
+                const p1 = this.fistTrail[i];
+                ctx.beginPath();
+                ctx.moveTo(p0.x, p0.y);
+                ctx.lineTo(p1.x, p1.y);
+                ctx.strokeStyle = this.glowColor;
+                ctx.lineWidth = 10 * p1.alpha;
+                ctx.lineCap = 'round';
+                ctx.globalAlpha = p1.alpha * 0.75;
+                ctx.shadowColor = this.glowColor;
+                ctx.shadowBlur = 15;
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // 3. Ground Shadow
+        const shadowScale = Math.max(0.25, 1 - (GROUND_Y - this.y) / 300);
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.beginPath();
+        ctx.ellipse(this.x, GROUND_Y + 4, 32 * shadowScale, 7 * shadowScale, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // 4. Draw Flowing Headband Ribbon
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(this.headbandNodes[0].x, this.headbandNodes[0].y);
+        for (let i = 1; i < this.headbandNodes.length; i++) {
+            ctx.lineTo(this.headbandNodes[i].x, this.headbandNodes[i].y);
+        }
+        ctx.strokeStyle = this.headbandColor;
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.shadowColor = this.headbandColor;
+        ctx.shadowBlur = 10;
+        ctx.stroke();
+        ctx.restore();
+
+        // 5. Draw Main Stickman Body
+        const pose = this.computeSkeletonPose();
+        this.drawPose(ctx, pose, this.color, 1.0, false);
+
+        // 6. Draw Block Energy Shield if Blocking
+        if (this.state === 'BLOCK') {
+            ctx.save();
+            ctx.strokeStyle = '#38bdf8';
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+            ctx.lineWidth = 3;
+            ctx.shadowColor = '#38bdf8';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.arc(this.x + this.facing * 12, this.y - 50, 46, -Math.PI * 0.45, Math.PI * 0.45, this.facing < 0);
+            ctx.stroke();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // 7. Full Mana Aura Flame
+        if (this.mana >= 100) {
+            ctx.save();
+            ctx.strokeStyle = this.glowColor;
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.35 + Math.sin(this.animTick * 0.25) * 0.2;
+            ctx.shadowColor = this.glowColor;
+            ctx.shadowBlur = 20;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y - 52, 52 + Math.sin(this.animTick * 0.3) * 5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    drawPose(ctx, pose, strokeColor, alpha, isGhost) {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.shadowColor = this.glowColor;
+        ctx.shadowBlur = isGhost ? 8 : 16;
+
+        // Back Limbs (darker for depth)
+        ctx.strokeStyle = isGhost ? strokeColor : '#94a3b8';
+        ctx.lineWidth = 7;
+        this.strokeLimb(ctx, pose.hip, pose.leftLeg);
+        this.strokeLimb(ctx, pose.shoulder, pose.leftArm);
+
+        // Spine / Torso
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 9;
+        ctx.beginPath();
+        ctx.moveTo(pose.hip.x, pose.hip.y);
+        ctx.lineTo(pose.shoulder.x, pose.shoulder.y);
+        ctx.stroke();
+
+        // Front Limbs
+        ctx.lineWidth = 7.5;
+        this.strokeLimb(ctx, pose.hip, pose.rightLeg);
+        this.strokeLimb(ctx, pose.shoulder, pose.rightArm);
+
+        // Glowing Fists / Feet during attack
+        if (!isGhost && (this.state === 'ATTACK' || this.state === 'ULTIMATE')) {
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = this.glowColor;
+            ctx.shadowBlur = 22;
+            ctx.beginPath();
+            ctx.arc(pose.rightArm.endX, pose.rightArm.endY, 6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Head
+        ctx.fillStyle = isGhost ? strokeColor : '#0f172a';
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 4.5;
+        ctx.beginPath();
+        ctx.arc(pose.head.x, pose.head.y, 13.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Glowing Anime Eye Visor
+        if (!isGhost) {
+            ctx.fillStyle = this.glowColor;
+            ctx.beginPath();
+            ctx.arc(pose.head.x + this.facing * 6, pose.head.y - 1, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    strokeLimb(ctx, root, ik) {
+        ctx.beginPath();
+        ctx.moveTo(root.x, root.y);
+        ctx.lineTo(ik.midX, ik.midY);
+        ctx.lineTo(ik.endX, ik.endY);
+        ctx.stroke();
+    }
+}
+
+function spawnShockwaveRing(x, y, color, maxRadius) {
+    shockwaves.push({
+        x, y,
+        radius: 10,
+        maxRadius,
+        color,
+        alpha: 1.0,
+        lineWidth: 6
+    });
+}
+
+// ============================================================================
+// 6. AI CONTROLLER
+// ============================================================================
+class AIController {
+    constructor() {
+        this.decisionCooldown = 0;
+        this.cachedInput = {};
+    }
+
+    getInput(ai, target, difficulty) {
+        const out = {
+            left: false, right: false, up: false, down: false,
+            light: false, heavy: false, dash: false,
+            skillKi: false, skillDragon: false, ult: false
+        };
+
+        if (gameConfig.mode === 'training' && !document.getElementById('chk-dummy-attack').checked) {
+            return out; // Passive training dummy
+        }
+
+        const dx = target.x - ai.x;
+        const absDist = Math.abs(dx);
+        const dirToTarget = dx > 0 ? 1 : -1;
+
+        const aggro = difficulty === 'easy' ? 0.35 : (difficulty === 'normal' ? 0.68 : 0.92);
+
+        // React to incoming attacks or projectiles
+        for (const proj of projectiles) {
+            if (proj.owner !== ai && Math.abs(proj.x - ai.x) < 160) {
+                if (Math.random() < aggro) {
+                    if (Math.random() < 0.5) out.up = true;
+                    else out.down = true;
+                    return out;
+                }
+            }
+        }
+
+        // Continue light combo chain if already hitting
+        if (ai.state === 'ATTACK' && ai.moveKey && ai.moveKey.startsWith('LIGHT_')) {
+            if (Math.random() < aggro) {
+                out.light = true;
+                if (ai.comboStep >= 3 && ai.mana >= 30 && Math.random() < aggro) {
+                    out.skillDragon = true;
+                }
+            }
+            return out;
+        }
+
+        // Far range behavior
+        if (absDist > 260) {
+            if (ai.mana >= 20 && Math.random() < 0.025 * aggro) {
+                out.skillKi = true;
+            } else if (Math.random() < 0.03 * aggro) {
+                out.dash = true;
+            } else {
+                if (dirToTarget > 0) out.right = true;
+                else out.left = true;
+            }
+            return out;
+        }
+
+        // Mid range behavior
+        if (absDist > 92) {
+            if (dirToTarget > 0) out.right = true;
+            else out.left = true;
+
+            if (Math.random() < 0.03 * aggro) {
+                out.heavy = true;
+            }
+            return out;
+        }
+
+        // Close range combat
+        if (target.state === 'ATTACK' && Math.random() < 0.25 * aggro) {
+            out.down = true; // Block
+            return out;
+        }
+
+        const roll = Math.random();
+        if (ai.mana >= 100 && roll < 0.05 * aggro) {
+            out.ult = true;
+        } else if (ai.mana >= 30 && roll < 0.06 * aggro) {
+            out.skillDragon = true;
+        } else if (roll < 0.14 * aggro) {
+            out.light = true;
+        } else if (roll < 0.18 * aggro) {
+            out.heavy = true;
+        }
+
+        return out;
+    }
+}
+
+// ============================================================================
+// 7. GAME STATE & INITIALIZATION
+// ============================================================================
+const gameConfig = {
+    mode: 'ai',        // 'ai', 'online', 'pvp', 'training'
+    difficulty: 'normal' // 'easy', 'normal', 'hard'
+};
+window.gameConfig = gameConfig;
+
+const gameState = {
+    running: false,
+    roundOver: false,
+    timer: 99,
+    lastSecondTime: 0,
+    hitstop: 0,
+    screenShake: 0,
+    cinematicDarkness: 0,
+    slowMoFactor: 1
+};
+window.gameState = gameState;
+
+const player1 = new Fighter({
+    id: 1,
+    name: 'LÔI THẦN (P1)',
+    x: 340,
+    facing: 1,
+    color: '#e0f2fe',
+    glowColor: '#00f0ff',
+    headbandColor: '#00f0ff'
+});
+
+const player2 = new Fighter({
+    id: 2,
+    name: 'HUYẾT ẢNH (P2)',
+    x: 940,
+    facing: -1,
+    color: '#ffe4e6',
+    glowColor: '#ff2a55',
+    headbandColor: '#ff2a55'
+});
+
+const aiBrain = new AIController();
+
+function readLocalControlInput() {
+    return {
+        left: !!(keys['KeyA'] || touchStateP1.left),
+        right: !!(keys['KeyD'] || touchStateP1.right),
+        up: !!(justPressed['KeyW'] || touchJustPressedP1.up),
+        down: !!(keys['KeyS'] || touchStateP1.down),
+        light: !!(justPressed['KeyJ'] || touchJustPressedP1.light),
+        heavy: !!(justPressed['KeyK'] || touchJustPressedP1.heavy),
+        skillKi: !!(justPressed['KeyL'] || justPressed['KeyO'] || touchJustPressedP1.skillKi),
+        skillDragon: !!(justPressed['KeyU'] || touchJustPressedP1.skillDragon),
+        ult: !!(justPressed['KeyI'] || touchJustPressedP1.ult),
+        dash: !!(justPressed['ShiftLeft'] || justPressed['Space'] || touchJustPressedP1.dash)
+    };
+}
+
+function getPlayer1Input() {
+    if (gameConfig.mode === 'online' && window.NetManager?.role === 'guest') {
+        // Guest's P1 is controlled by Host snapshot
+        return {
+            left: false, right: false, up: false, down: false,
+            light: false, heavy: false, dash: false,
+            skillKi: false, skillDragon: false, ult: false
+        };
+    }
+    return readLocalControlInput();
+}
+
+function getPlayer2Input() {
+    if (gameConfig.mode === 'online') {
+        if (window.NetManager?.role === 'host') {
+            return window.NetManager.remoteInput || {};
+        } else {
+            const guestLocal = readLocalControlInput();
+            window.NetManager?.sendGuestInput(guestLocal);
+            return guestLocal;
+        }
+    }
+    if (gameConfig.mode !== 'pvp') {
+        return aiBrain.getInput(player2, player1, gameConfig.difficulty);
+    }
+    return {
+        left: !!(keys['ArrowLeft'] || touchStateP2.left),
+        right: !!(keys['ArrowRight'] || touchStateP2.right),
+        up: !!(justPressed['ArrowUp'] || touchJustPressedP2.up),
+        down: !!(keys['ArrowDown'] || touchStateP2.down),
+        light: !!(justPressed['Numpad1'] || justPressed['Digit1'] || touchJustPressedP2.light),
+        heavy: !!(justPressed['Numpad2'] || justPressed['Digit2'] || touchJustPressedP2.heavy),
+        skillKi: !!(justPressed['Numpad3'] || justPressed['Digit3'] || touchJustPressedP2.skillKi),
+        skillDragon: !!(justPressed['Numpad4'] || justPressed['Digit4'] || touchJustPressedP2.skillDragon),
+        ult: !!(justPressed['Numpad5'] || justPressed['Digit5'] || touchJustPressedP2.ult),
+        dash: !!(justPressed['Numpad0'] || justPressed['Digit0'] || justPressed['ShiftRight'] || touchJustPressedP2.dash)
+    };
+}
+
+// Serialize & Apply Online State Snapshot (Host -> Guest)
+function createNetworkSnapshot() {
+    return {
+        timer: gameState.timer,
+        roundOver: gameState.roundOver,
+        p1: {
+            x: Math.round(player1.x), y: Math.round(player1.y),
+            vx: player1.vx, vy: player1.vy, facing: player1.facing,
+            hp: player1.hp, mana: Math.round(player1.mana),
+            state: player1.state, moveKey: player1.moveKey, moveFrame: player1.moveFrame,
+            comboCounter: player1.comboCounter
+        },
+        p2: {
+            x: Math.round(player2.x), y: Math.round(player2.y),
+            vx: player2.vx, vy: player2.vy, facing: player2.facing,
+            hp: player2.hp, mana: Math.round(player2.mana),
+            state: player2.state, moveKey: player2.moveKey, moveFrame: player2.moveFrame,
+            comboCounter: player2.comboCounter
+        }
+    };
+}
+
+window.applyNetworkSnapshot = function(snap) {
+    if (!snap || gameConfig.mode !== 'online' || window.NetManager?.role !== 'guest') return;
+    gameState.timer = snap.timer;
+
+    const syncFighter = (f, s) => {
+        f.x += (s.x - f.x) * 0.55;
+        f.y += (s.y - f.y) * 0.55;
+        f.vx = s.vx;
+        f.vy = s.vy;
+        f.facing = s.facing;
+        if (s.hp < f.hp) {
+            spawnHitSparks(f.x, f.y - 55, f.glowColor, 10, false);
+        }
+        f.hp = s.hp;
+        f.mana = s.mana;
+        if (s.state === 'ATTACK' && f.moveKey !== s.moveKey && MOVES[s.moveKey]) {
+            f.state = 'ATTACK';
+            f.moveKey = s.moveKey;
+            f.currentMove = MOVES[s.moveKey];
+            f.moveFrame = s.moveFrame;
+        } else if (s.state === 'ULTIMATE' && f.state !== 'ULTIMATE') {
+            f.state = 'ULTIMATE';
+            f.moveKey = 'ULTIMATE';
+            f.currentMove = MOVES.ULTIMATE;
+            f.moveFrame = s.moveFrame;
+        } else {
+            f.state = s.state;
+        }
+        f.comboCounter = s.comboCounter;
+    };
+
+    syncFighter(player1, snap.p1);
+    syncFighter(player2, snap.p2);
+};
+
+function startMatch(fromNetwork = false) {
+    if (gameConfig.mode === 'online' && !window.NetManager?.connected && !fromNetwork) {
+        window.NetManager?.setStatusText('⚠️ Hãy Tạo Phòng hoặc Nhập Mã 4 Số để kết nối 2 điện thoại trước!', 'text-rose-400');
+        return;
+    }
+
+    sfx.init();
+    player1.reset(340, 1);
+    player2.reset(940, -1);
+
+    projectiles.length = 0;
+    particles.length = 0;
+    shockwaves.length = 0;
+    slashEffects.length = 0;
+    floatingTexts.length = 0;
+
+    gameState.running = true;
+    gameState.roundOver = false;
+    gameState.timer = gameConfig.mode === 'training' ? 999 : 99;
+    gameState.lastSecondTime = performance.now();
+    gameState.hitstop = 0;
+    gameState.screenShake = 0;
+    gameState.cinematicDarkness = 0;
+    gameState.slowMoFactor = 1;
+
+    // Update UI Labels
+    const p1Label = document.getElementById('p1-name-label');
+    const p2Label = document.getElementById('p2-name-label');
+    p1Label.textContent = 'LÔI THẦN (P1)';
+
+    if (gameConfig.mode === 'online') {
+        const isHost = window.NetManager?.role === 'host';
+        p1Label.textContent = isHost ? 'LÔI THẦN (BẠN)' : 'LÔI THẦN (P1)';
+        p2Label.textContent = !isHost ? 'HUYẾT ẢNH (BẠN)' : 'HUYẾT ẢNH (P2)';
+        document.getElementById('online-status-bar').classList.remove('hidden');
+        document.getElementById('online-ping-badge').classList.remove('hidden');
+        document.getElementById('online-room-label').textContent = `🌐 PHÒNG: ${window.NetManager.roomCode || '----'}`;
+        document.getElementById('online-role-label').textContent = isHost ? 'Máy Chủ: Lôi Thần (P1)' : 'Khách: Huyết Ảnh (P2)';
+    } else {
+        document.getElementById('online-status-bar').classList.add('hidden');
+        document.getElementById('online-ping-badge').classList.add('hidden');
+        if (gameConfig.mode === 'pvp') {
+            p2Label.textContent = 'HUYẾT ẢNH (P2)';
+        } else if (gameConfig.mode === 'training') {
+            p2Label.textContent = 'MỘC NHÂN (TẬP)';
+        } else {
+            const diffMap = { easy: 'DỄ', normal: 'THƯỜNG', hard: 'CAO THỦ' };
+            p2Label.textContent = `HUYẾT ẢNH (AI - ${diffMap[gameConfig.difficulty]})`;
+        }
+    }
+
+    document.getElementById('training-toolbar').classList.toggle('hidden', gameConfig.mode !== 'training');
+    document.getElementById('menu-modal').classList.add('hidden');
+    document.getElementById('ko-overlay').classList.add('hidden');
+
+    updateTouchControlsVisibility();
+    spawnFloatingText(V_WIDTH / 2, V_HEIGHT / 2 - 40, 'KHAI CHIẾN!', '#00f0ff', 46);
+    updateHUD();
+}
+window.startMatch = startMatch;
+
+function triggerKO(winnerName) {
+    gameState.roundOver = true;
+    gameState.slowMoFactor = 3; // Slow-mo finish
+    gameState.screenShake = 24;
+    sfx.playHit(true);
+
+    document.getElementById('ko-main-text').textContent = 'K.O.!';
+    document.getElementById('ko-sub-text').textContent = `${winnerName} CHIẾN THẮNG!`;
+    document.getElementById('ko-overlay').classList.remove('hidden');
+}
+
+// ============================================================================
+// 8. HUD & BACKGROUND RENDERING
+// ============================================================================
+function updateHUD() {
+    const p1HpPct = Math.max(0, (player1.hp / player1.maxHp) * 100);
+    const p2HpPct = Math.max(0, (player2.hp / player2.maxHp) * 100);
+    const p1MpPct = Math.max(0, (player1.mana / player1.maxMana) * 100);
+    const p2MpPct = Math.max(0, (player2.mana / player2.maxMana) * 100);
+
+    document.getElementById('p1-hp-bar').style.width = `${p1HpPct}%`;
+    document.getElementById('p1-hp-damage').style.width = `${p1HpPct}%`;
+    document.getElementById('p1-hp-text').textContent = `${Math.ceil(player1.hp)} / ${player1.maxHp}`;
+
+    document.getElementById('p2-hp-bar').style.width = `${p2HpPct}%`;
+    document.getElementById('p2-hp-damage').style.width = `${p2HpPct}%`;
+    document.getElementById('p2-hp-text').textContent = `${Math.ceil(player2.hp)} / ${player2.maxHp}`;
+
+    document.getElementById('p1-mp-bar').style.width = `${p1MpPct}%`;
+    document.getElementById('p1-mp-text').textContent = `${Math.floor(p1MpPct)}% NỘI LỰC`;
+
+    document.getElementById('p2-mp-bar').style.width = `${p2MpPct}%`;
+    document.getElementById('p2-mp-text').textContent = `${Math.floor(p2MpPct)}% NỘI LỰC`;
+
+    document.getElementById('timer-display').textContent = gameConfig.mode === 'training' ? '∞' : gameState.timer;
+
+    // Highlight Mobile Ultimate Button when Controlled Fighter has 100% Mana
+    const ultBtn = document.getElementById('btn-touch-ult');
+    if (ultBtn) {
+        const controlledFighter = (gameConfig.mode === 'online' && window.NetManager?.role === 'guest') ? player2 : player1;
+        if (controlledFighter.mana >= 100) {
+            ultBtn.classList.add('ult-ready-btn');
+        } else {
+            ultBtn.classList.remove('ult-ready-btn');
+        }
+    }
+}
+
+function drawArenaBackground(ctx) {
+    // Deep Night Sky Gradient
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+    skyGrad.addColorStop(0, '#05070e');
+    skyGrad.addColorStop(0.6, '#0f172a');
+    skyGrad.addColorStop(1, '#1e1b4b');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, V_WIDTH, GROUND_Y);
+
+    // Giant Glowing Blood/Cyber Moon
+    ctx.save();
+    const moonGrad = ctx.createRadialGradient(V_WIDTH / 2, 230, 20, V_WIDTH / 2, 230, 175);
+    moonGrad.addColorStop(0, 'rgba(224, 242, 254, 0.95)');
+    moonGrad.addColorStop(0.55, 'rgba(56, 189, 248, 0.35)');
+    moonGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+    ctx.fillStyle = moonGrad;
+    ctx.beginPath();
+    ctx.arc(V_WIDTH / 2, 230, 175, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Distant Mountain Silhouettes
+    ctx.fillStyle = '#090d16';
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y);
+    ctx.lineTo(0, 440);
+    ctx.lineTo(220, 340);
+    ctx.lineTo(430, 460);
+    ctx.lineTo(640, 320);
+    ctx.lineTo(880, 450);
+    ctx.lineTo(1090, 350);
+    ctx.lineTo(V_WIDTH, 430);
+    ctx.lineTo(V_WIDTH, GROUND_Y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Traditional Torii / Dojo Pillars Silhouette
+    ctx.fillStyle = '#0f1420';
+    ctx.fillRect(150, 310, 22, GROUND_Y - 310);
+    ctx.fillRect(290, 310, 22, GROUND_Y - 310);
+    ctx.fillRect(120, 290, 220, 18);
+    ctx.fillRect(135, 325, 190, 12);
+
+    ctx.fillRect(V_WIDTH - 312, 310, 22, GROUND_Y - 310);
+    ctx.fillRect(V_WIDTH - 172, 310, 22, GROUND_Y - 310);
+    ctx.fillRect(V_WIDTH - 340, 290, 220, 18);
+    ctx.fillRect(V_WIDTH - 325, 325, 190, 12);
+
+    // Floating Embers
+    ctx.save();
+    for (const p of backgroundLanterns) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.y < 20) p.y = GROUND_Y - 20;
+        if (p.x < 0) p.x = V_WIDTH;
+        if (p.x > V_WIDTH) p.x = 0;
+
+        ctx.fillStyle = `rgba(56, 189, 248, ${p.alpha})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
+
+    // Dojo Floor & Perspective Grid
+    const floorGrad = ctx.createLinearGradient(0, GROUND_Y, 0, V_HEIGHT);
+    floorGrad.addColorStop(0, '#0f172a');
+    floorGrad.addColorStop(1, '#020617');
+    ctx.fillStyle = floorGrad;
+    ctx.fillRect(0, GROUND_Y, V_WIDTH, V_HEIGHT - GROUND_Y);
+
+    // Glowing Horizon Line
+    ctx.save();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 15;
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y);
+    ctx.lineTo(V_WIDTH, GROUND_Y);
+    ctx.stroke();
+
+    // Perspective Floor Lines
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.16)';
+    ctx.lineWidth = 1.5;
+    ctx.shadowBlur = 0;
+    for (let i = -8; i <= 8; i++) {
+        const topX = V_WIDTH / 2 + i * 90;
+        const botX = V_WIDTH / 2 + i * 210;
+        ctx.beginPath();
+        ctx.moveTo(topX, GROUND_Y);
+        ctx.lineTo(botX, V_HEIGHT);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function drawComboBanners(ctx) {
+    // Player 1 Combo Counter
+    if (player1.comboCounter >= 2) {
+        ctx.save();
+        const scale = 1 + Math.sin(performance.now() * 0.02) * 0.06;
+        ctx.translate(140, 210);
+        ctx.scale(scale, scale);
+        ctx.font = 'italic 900 44px "Chakra Petch", sans-serif';
+        ctx.fillStyle = '#00f0ff';
+        ctx.shadowColor = '#00f0ff';
+        ctx.shadowBlur = 18;
+        ctx.fillText(`${player1.comboCounter} HIT`, 0, 0);
+        ctx.font = 'italic 800 18px "Chakra Petch", sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('LIÊN HOÀN COMBO!', 4, 24);
+        ctx.restore();
+    }
+
+    // Player 2 Combo Counter
+    if (player2.comboCounter >= 2) {
+        ctx.save();
+        const scale = 1 + Math.sin(performance.now() * 0.02) * 0.06;
+        ctx.translate(V_WIDTH - 280, 210);
+        ctx.scale(scale, scale);
+        ctx.font = 'italic 900 44px "Chakra Petch", sans-serif';
+        ctx.fillStyle = '#ff2a55';
+        ctx.shadowColor = '#ff2a55';
+        ctx.shadowBlur = 18;
+        ctx.fillText(`${player2.comboCounter} HIT`, 0, 0);
+        ctx.font = 'italic 800 18px "Chakra Petch", sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('LIÊN HOÀN COMBO!', 4, 24);
+        ctx.restore();
+    }
+}
+
+// ============================================================================
+// 9. MAIN GAME LOOP
+// ============================================================================
+let slowMoCounter = 0;
+
+function gameLoop(timestamp) {
+    requestAnimationFrame(gameLoop);
+
+    // Handle Hit-Stop (Impact Freeze Frame)
+    if (gameState.hitstop > 0) {
+        gameState.hitstop--;
+        renderScene();
+        return;
+    }
+
+    // Slow-motion logic on K.O.
+    if (gameState.slowMoFactor > 1) {
+        slowMoCounter++;
+        if (slowMoCounter % gameState.slowMoFactor !== 0) {
+            renderScene();
+            return;
+        }
+    }
+
+    if (gameState.running) {
+        // Round Timer
+        if (!gameState.roundOver && gameConfig.mode !== 'training') {
+            if (timestamp - gameState.lastSecondTime >= 1000) {
+                gameState.lastSecondTime = timestamp;
+                if (gameState.timer > 0) {
+                    gameState.timer--;
+                    if (gameState.timer === 0) {
+                        const winner = player1.hp >= player2.hp ? player1.name : player2.name;
+                        triggerKO(winner);
+                    }
+                }
+            }
+        }
+
+        const p1Input = getPlayer1Input();
+        const p2Input = getPlayer2Input();
+
+        player1.update(player2, p1Input);
+        player2.update(player1, p2Input);
+
+        // If Online Host, broadcast state snapshot to Guest Phone
+        if (gameConfig.mode === 'online' && window.NetManager?.role === 'host') {
+            window.NetManager.sendHostSnapshot(createNetworkSnapshot());
+        }
+
+        // Update Projectiles (Sword Ki Waves)
+        for (let i = projectiles.length - 1; i >= 0; i--) {
+            const proj = projectiles[i];
+            proj.x += proj.vx;
+            proj.life--;
+
+            // Trail particles
+            particles.push({
+                x: proj.x + (Math.random() - 0.5) * 12,
+                y: proj.y + (Math.random() - 0.5) * 12,
+                vx: -proj.vx * 0.2,
+                vy: (Math.random() - 0.5) * 2,
+                size: Math.random() * 5 + 3,
+                color: proj.color,
+                life: 0.8,
+                decay: 0.08,
+                spark: false
+            });
+
+            const target = proj.owner === player1 ? player2 : player1;
+            const dist = Math.hypot(proj.x - target.x, proj.y - (target.y - 52));
+
+            if (dist < proj.radius + 28 && target.invulnerableTimer <= 0) {
+                // Hit target!
+                proj.owner.applyHitToOpponent(target, {
+                    damage: proj.damage,
+                    manaGain: 10,
+                    knockbackX: 11,
+                    knockbackY: -6,
+                    hitstun: 24,
+                    hitstop: 5,
+                    heavyEffect: true
+                });
+                projectiles.splice(i, 1);
+                continue;
+            }
+
+            if (proj.life <= 0 || proj.x < -50 || proj.x > V_WIDTH + 50) {
+                projectiles.splice(i, 1);
+            }
+        }
+
+        // Check K.O. Condition
+        if (!gameState.roundOver && gameConfig.mode !== 'training') {
+            if (player1.hp <= 0) {
+                triggerKO(player2.name);
+            } else if (player2.hp <= 0) {
+                triggerKO(player1.name);
+            }
+        } else if (gameConfig.mode === 'training') {
+            if (player2.hp <= 0) player2.hp = player2.maxHp;
+            if (player1.hp <= 0) player1.hp = player1.maxHp;
+        }
+
+        updateHUD();
+    }
+
+    // Update Particles, Shockwaves & Floating Texts
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.spark) p.vy += 0.35;
+        p.life -= p.decay;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    for (let i = shockwaves.length - 1; i >= 0; i--) {
+        const sw = shockwaves[i];
+        sw.radius += (sw.maxRadius - sw.radius) * 0.22;
+        sw.alpha -= 0.06;
+        if (sw.alpha <= 0) shockwaves.splice(i, 1);
+    }
+
+    for (let i = slashEffects.length - 1; i >= 0; i--) {
+        slashEffects[i].life -= 0.09;
+        if (slashEffects[i].life <= 0) slashEffects.splice(i, 1);
+    }
+
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        const ft = floatingTexts[i];
+        ft.y += ft.vy;
+        ft.life -= 0.025;
+        if (ft.life <= 0) floatingTexts.splice(i, 1);
+    }
+
+    // Clear per-frame justPressed (Keyboard + Touch)
+    for (const k in justPressed) delete justPressed[k];
+    for (const k in touchJustPressedP1) delete touchJustPressedP1[k];
+    for (const k in touchJustPressedP2) delete touchJustPressedP2[k];
+
+    renderScene();
+}
+
+function renderScene() {
+    ctx.save();
+
+    // Screen Shake Camera Offset
+    if (gameState.screenShake > 0) {
+        const dx = (Math.random() - 0.5) * gameState.screenShake * 1.8;
+        const dy = (Math.random() - 0.5) * gameState.screenShake * 1.8;
+        ctx.translate(dx, dy);
+        gameState.screenShake *= 0.85;
+        if (gameState.screenShake < 0.5) gameState.screenShake = 0;
+    }
+
+    // 1. Arena Background
+    drawArenaBackground(ctx);
+
+    // 2. Ultimate Cinematic Darkening Overlay
+    if (gameState.cinematicDarkness > 0) {
+        ctx.fillStyle = `rgba(2, 6, 23, ${Math.min(0.82, gameState.cinematicDarkness / 50)})`;
+        ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
+    }
+
+    // 3. Draw Fighters
+    player2.draw(ctx);
+    player1.draw(ctx);
+
+    // 4. Draw Crescent Sword Ki Projectiles
+    for (const proj of projectiles) {
+        ctx.save();
+        ctx.translate(proj.x, proj.y);
+        if (proj.facing < 0) ctx.scale(-1, 1);
+
+        ctx.shadowColor = proj.color;
+        ctx.shadowBlur = 25;
+
+        // Outer Glowing Crescent Blade Wave
+        ctx.beginPath();
+        ctx.arc(0, 0, proj.radius + 8, -Math.PI * 0.42, Math.PI * 0.42, false);
+        ctx.arc(-10, 0, proj.radius + 2, Math.PI * 0.38, -Math.PI * 0.38, true);
+        ctx.closePath();
+        ctx.fillStyle = proj.color;
+        ctx.fill();
+
+        // Inner White Core
+        ctx.beginPath();
+        ctx.arc(2, 0, proj.radius, -Math.PI * 0.35, Math.PI * 0.35, false);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    // 5. Draw Shockwaves
+    for (const sw of shockwaves) {
+        ctx.save();
+        ctx.strokeStyle = sw.color;
+        ctx.globalAlpha = sw.alpha;
+        ctx.lineWidth = sw.lineWidth;
+        ctx.shadowColor = sw.color;
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // 6. Draw Anime Slash Lines
+    for (const sl of slashEffects) {
+        ctx.save();
+        ctx.translate(sl.x, sl.y);
+        ctx.rotate(sl.angle);
+        ctx.globalAlpha = sl.life;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = sl.color;
+        ctx.shadowBlur = 20;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, sl.length, sl.thickness * sl.life, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // 7. Draw Sparks & Dust Particles
+    for (const p of particles) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillStyle = p.color;
+        if (p.spark) {
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p.x - p.vx * 1.6, p.y - p.vy * 1.6);
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = p.size * 0.7;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+        } else {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    // 8. Draw Floating Damage & Skill Callouts
+    for (const ft of floatingTexts) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, ft.life);
+        ctx.font = `italic 800 ${ft.size}px "Chakra Petch", sans-serif`;
+        ctx.fillStyle = ft.color;
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 8;
+        ctx.textAlign = 'center';
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.restore();
+    }
+
+    // 9. Draw Combo Counters
+    drawComboBanners(ctx);
+
+    ctx.restore();
+}
+
+// ============================================================================
+// 10. UI EVENT LISTENERS
+// ============================================================================
+document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active-mode'));
+        btn.classList.add('active-mode');
+        gameConfig.mode = btn.getAttribute('data-mode');
+        document.getElementById('ai-diff-section').classList.toggle('hidden', gameConfig.mode !== 'ai');
+        document.getElementById('online-lobby-section').classList.toggle('hidden', gameConfig.mode !== 'online');
+        updateTouchControlsVisibility();
+    });
+});
+
+document.querySelectorAll('.diff-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.diff-btn').forEach(b => {
+            b.className = 'diff-btn py-2 rounded-lg border border-slate-700 bg-slate-800/80 text-xs font-bold text-slate-300 hover:border-cyan-400';
+        });
+        btn.className = 'diff-btn py-2 rounded-lg border border-cyan-400 bg-cyan-900/60 text-xs font-bold text-white shadow-[0_0_10px_rgba(0,240,255,0.3)]';
+        gameConfig.difficulty = btn.getAttribute('data-diff');
+    });
+});
+
+// Online Room Creation & Join Listeners
+document.getElementById('btn-create-room').addEventListener('click', () => {
+    window.NetManager?.hostRoom();
+});
+
+document.getElementById('btn-join-room').addEventListener('click', () => {
+    const code = document.getElementById('input-join-code').value;
+    window.NetManager?.joinRoom(code);
+});
+
+document.getElementById('btn-copy-code').addEventListener('click', () => {
+    const code = document.getElementById('generated-room-code').textContent;
+    if (!code || code === '----') return;
+    const tempInput = document.createElement('input');
+    tempInput.value = code;
+    document.body.appendChild(tempInput);
+    tempInput.select();
+    document.execCommand('copy');
+    document.body.removeChild(tempInput);
+    const copyBtn = document.getElementById('btn-copy-code');
+    copyBtn.textContent = 'ĐÃ CHÉP!';
+    setTimeout(() => { copyBtn.textContent = 'COPY'; }, 1500);
+});
+
+document.getElementById('btn-toggle-touch').addEventListener('click', () => {
+    virtualGamepadVisible = !virtualGamepadVisible;
+    updateTouchControlsVisibility();
+});
+
+document.getElementById('btn-start-fight').addEventListener('click', () => startMatch(false));
+document.getElementById('btn-rematch').addEventListener('click', () => {
+    if (gameConfig.mode === 'online') {
+        window.NetManager?.sendRematch();
+    }
+    startMatch(true);
+});
+
+document.getElementById('btn-open-menu').addEventListener('click', () => {
+    gameState.running = false;
+    document.getElementById('menu-modal').classList.remove('hidden');
+});
+
+document.getElementById('btn-back-menu').addEventListener('click', () => {
+    gameState.running = false;
+    document.getElementById('ko-overlay').classList.add('hidden');
+    document.getElementById('menu-modal').classList.remove('hidden');
+});
+
+document.getElementById('btn-toggle-moves').addEventListener('click', () => {
+    document.getElementById('combo-guide-panel').classList.toggle('hidden');
+});
+
+document.getElementById('btn-close-guide').addEventListener('click', () => {
+    document.getElementById('combo-guide-panel').classList.add('hidden');
+});
+
+window.onload = function () {
+    updateTouchControlsVisibility();
+    requestAnimationFrame(gameLoop);
+};
+</script>
+</body>
+</html>
